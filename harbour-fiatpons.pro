@@ -48,6 +48,7 @@ for(f, REQUIRED_FILES) {
 }
 
 DISTFILES += \
+    qml/Queue.qml \
     qml/harbour-fiatpons.qml \
     qml/pages/PlayProbe.qml \
     qml/pages/SearchPage.qml \

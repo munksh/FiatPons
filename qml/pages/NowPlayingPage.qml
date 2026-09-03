@@ -7,20 +7,26 @@ import ".."
 
 Page {
     id: page
-
-    property string trackTitle: "Nothing playing"
-    property string trackArtist: ""
-    property string trackAlbum: ""
-    property int trackId: 0
     property string statusLine: ""
 
-    function applySelectedTrack(track) {
-        trackTitle = track.title
-        trackArtist = track.artist
-        trackAlbum = track.album
-        trackId = track.id
-        statusLine = "Resolving…"
-        backend.streamUrl(track.id)
+    readonly property var track: app.queue.currentTrack
+    readonly property string trackTitle:  track ? track.title  : "Nothing playing"
+    readonly property string trackArtist: track ? track.artist : ""
+    readonly property string trackAlbum:  track ? track.album  : ""
+
+    // When the queue's current track changes, resolve its URL and play.
+    property int playingId: 0
+
+    onTrackChanged: {
+        var id = track ? track.id : 0
+        if (id === playingId) return   // model changed but the current song didn't
+        playingId = id
+        if (track) {
+            statusLine = "Resolving…"
+            backend.streamUrl(track.id)
+        } else {
+            player.stop()
+        }
     }
 
     function handleStream(json) {
@@ -49,6 +55,14 @@ Page {
         id: player
         autoPlay: false
         onError: page.statusLine = "Playback error: " + errorString
+        // Track finished → advance to the next queued track (which retriggers
+        // onTrackChanged → resolve → play). If none, just stop.
+        onStopped: {
+            if (playbackState === MediaPlayer.StoppedState && status === MediaPlayer.EndOfMedia) {
+                if (!app.queue.next())
+                    page.statusLine = "End of queue"
+            }
+        }
     }
 
     Rectangle {
@@ -71,10 +85,7 @@ Page {
             MenuItem {
                 text: "Search"
                 color: FiatPonsTheme.primaryText
-                onClicked: pageStack.push(
-                    Qt.resolvedUrl("SearchPage.qml"),
-                    { onTrackSelected: page.applySelectedTrack }
-                )
+                onClicked: pageStack.push(Qt.resolvedUrl("SearchPage.qml"))
             }
             MenuItem {
                 text: FiatPonsTheme.ambient ? "Fiat colours" : "Follow ambience"
@@ -153,21 +164,31 @@ Page {
                 }
             }
 
-            Button {
+            Row {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Play / Pause"
-                enabled: page.trackId !== 0
-                onClicked: {
-                    if (player.playbackState === MediaPlayer.PlayingState)
-                        player.pause()
-                    else
-                        player.play()
+                spacing: Theme.paddingLarge * 2
+
+                Button {
+                    text: "Play / Pause"
+                    enabled: page.track !== null
+                    onClicked: {
+                        if (player.playbackState === MediaPlayer.PlayingState)
+                            player.pause()
+                        else
+                            player.play()
+                    }
+                }
+                Button {
+                    text: "Next"
+                    enabled: app.queue.hasNext()
+                    onClicked: app.queue.next()
                 }
             }
 
             Label {
                 width: parent.width
-                text: page.statusLine
+                text: page.statusLine + (app.queue.model.count > 0
+                    ? "   (" + (app.queue.currentIndex + 1) + "/" + app.queue.model.count + ")" : "")
                 color: FiatPonsTheme.accent
                 font.pixelSize: Theme.fontSizeExtraSmall
                 horizontalAlignment: Text.AlignHCenter

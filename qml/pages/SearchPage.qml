@@ -71,14 +71,15 @@ Page {
             width: listView.width
             contentHeight: Theme.itemSizeMedium
             onClicked: {
-                if (page.onTrackSelected) {
-                    page.onTrackSelected({
-                        id: model.id,
-                        title: model.title,
-                        artist: model.artist,
-                        album: model.album
-                    })
-                }
+                app.queue.enqueue({
+                    id: model.id,
+                    title: model.title,
+                    artist: model.artist,
+                    album: model.album
+                })
+                // If nothing is playing yet, start at the one just added.
+                if (app.queue.currentIndex < 0)
+                    app.queue.currentIndex = app.queue.model.count - 1
                 pageStack.pop()
             }
             Column {
