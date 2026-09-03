@@ -49,6 +49,7 @@ for(f, REQUIRED_FILES) {
 
 DISTFILES += \
     qml/harbour-fiatpons.qml \
+    qml/pages/PlayProbe.qml \
     qml/pages/SearchPage.qml \
     qml/pages/PingPage.qml \
     qml/qmldir \
