@@ -1,0 +1,19 @@
+[package]
+name = "fiatpons_ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fiatpons_ffi"
+crate-type = ["cdylib"]
+
+[dependencies]
+qbz-qobuz  = { path = "../../qbz-upstream/crates/qbz-qobuz" }
+qbz-models = { path = "../../qbz-upstream/crates/qbz-models" }
+tokio      = { version = "1", features = ["full"] }
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+once_cell  = "1"
+
+# Hold transitive deps back to versions the SDK's cargo (1.75) can parse.
+zeroize    = "=1.8.1"
