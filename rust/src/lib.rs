@@ -9,12 +9,9 @@ use tokio::runtime::Runtime;
 
 use facade::{Core, FpTrack};
 
-static RT:   Lazy<Runtime>            = Lazy::new(|| Runtime::new().expect("tokio runtime"));
+static RT:   Lazy<Runtime>             = Lazy::new(|| Runtime::new().expect("tokio runtime"));
 static CORE: Lazy<Mutex<Option<Core>>> = Lazy::new(|| Mutex::new(None));
 
-// The token is minted on the desktop (cargo run --bin pons-spike) and dropped
-// into the app's own data dir. This is the temporary stand-in for on-device
-// OAuth — same shape, it just reads the token instead of doing the browser dance.
 fn token_path() -> Option<String> {
     let home = std::env::var("HOME").ok()?;
     Some(format!("{home}/.local/share/se.munkstolen/harbour-fiatpons/token"))
@@ -25,8 +22,7 @@ fn ensure_core(slot: &mut Option<Core>) -> Result<(), String> {
     let path = token_path().ok_or("no HOME set")?;
     let token = std::fs::read_to_string(&path)
         .map_err(|e| format!("no token file at {path}: {e}"))?
-        .trim()
-        .to_string();
+        .trim().to_string();
     if token.is_empty() { return Err("token file is empty".into()); }
     let core = RT.block_on(async {
         let c = Core::new().await?;
@@ -37,18 +33,17 @@ fn ensure_core(slot: &mut Option<Core>) -> Result<(), String> {
     Ok(())
 }
 
-/// Search Qobuz. Returns a malloc'd C string of JSON — {"tracks":[…]} or
-/// {"error":"…"}. Caller MUST free it with fp_free. Runs blocking work; the
-/// C++ side calls this on a worker thread, never the UI thread.
 #[no_mangle]
 pub extern "C" fn fp_search(query: *const c_char) -> *mut c_char {
-    let out = build_response(query);
-    CString::new(out)
-        .unwrap_or_else(|_| CString::new(r#"{"error":"nul in output"}"#).unwrap())
-        .into_raw()
+    to_c(build_search(query))
 }
 
-fn build_response(query: *const c_char) -> String {
+#[no_mangle]
+pub extern "C" fn fp_stream_url(track_id: u64) -> *mut c_char {
+    to_c(build_stream(track_id))
+}
+
+fn build_search(query: *const c_char) -> String {
     if query.is_null() { return err_json("null query"); }
     let q = match unsafe { CStr::from_ptr(query) }.to_str() {
         Ok(s) => s.to_string(),
@@ -56,9 +51,17 @@ fn build_response(query: *const c_char) -> String {
     };
     let mut slot = CORE.lock().unwrap();
     if let Err(e) = ensure_core(&mut slot) { return err_json(&e); }
-    let core = slot.as_ref().unwrap();
-    match RT.block_on(core.search(&q)) {
+    match RT.block_on(slot.as_ref().unwrap().search(&q)) {
         Ok(tracks) => tracks_json(&tracks),
+        Err(e) => err_json(&e),
+    }
+}
+
+fn build_stream(track_id: u64) -> String {
+    let mut slot = CORE.lock().unwrap();
+    if let Err(e) = ensure_core(&mut slot) { return err_json(&e); }
+    match RT.block_on(slot.as_ref().unwrap().stream_url(track_id)) {
+        Ok(s) => serde_json::to_string(&s).unwrap_or_else(|e| err_json(&e.to_string())),
         Err(e) => err_json(&e),
     }
 }
@@ -73,7 +76,12 @@ fn err_json(msg: &str) -> String {
     format!(r#"{{"error":{}}}"#, serde_json::to_string(msg).unwrap_or_else(|_| "\"error\"".into()))
 }
 
-/// Free a string returned by fp_search.
+fn to_c(s: String) -> *mut c_char {
+    CString::new(s)
+        .unwrap_or_else(|_| CString::new(r#"{"error":"nul in output"}"#).unwrap())
+        .into_raw()
+}
+
 #[no_mangle]
 pub extern "C" fn fp_free(s: *mut c_char) {
     if s.is_null() { return; }

@@ -7,10 +7,10 @@
 
 extern "C" {
     char *fp_search(const char *query);
+    char *fp_stream_url(unsigned long long track_id);
     void  fp_free(char *s);
 }
 
-// Runs the blocking Rust call on its own thread so the UI never stalls.
 class SearchWorker : public QObject
 {
     Q_OBJECT
@@ -20,14 +20,19 @@ public slots:
         char *raw = fp_search(q.constData());
         QString out = QString::fromUtf8(raw);
         fp_free(raw);
-        emit done(out);
+        emit searchDone(out);
+    }
+    void doStreamUrl(qulonglong id) {
+        char *raw = fp_stream_url(id);
+        QString out = QString::fromUtf8(raw);
+        fp_free(raw);
+        emit streamDone(out);
     }
 signals:
-    void done(const QString &json);
+    void searchDone(const QString &json);
+    void streamDone(const QString &json);
 };
 
-// The object QML talks to. search() hands the query to the worker thread;
-// searchComplete fires back on the UI thread when the JSON is ready.
 class Backend : public QObject
 {
     Q_OBJECT
@@ -37,16 +42,21 @@ public:
         worker->moveToThread(&m_thread);
         connect(&m_thread, &QThread::finished, worker, &QObject::deleteLater);
         connect(this, &Backend::requestSearch, worker, &SearchWorker::doSearch);
-        connect(worker, &SearchWorker::done, this, &Backend::searchComplete);
+        connect(this, &Backend::requestStream, worker, &SearchWorker::doStreamUrl);
+        connect(worker, &SearchWorker::searchDone, this, &Backend::searchComplete);
+        connect(worker, &SearchWorker::streamDone, this, &Backend::streamReady);
         m_thread.start();
     }
     ~Backend() override { m_thread.quit(); m_thread.wait(); }
 
     Q_INVOKABLE void search(const QString &query) { emit requestSearch(query); }
+    Q_INVOKABLE void streamUrl(qulonglong id) { emit requestStream(id); }
 
 signals:
     void requestSearch(const QString &query);
+    void requestStream(qulonglong id);
     void searchComplete(const QString &json);
+    void streamReady(const QString &json);
 
 private:
     QThread m_thread;

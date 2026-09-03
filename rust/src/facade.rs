@@ -14,6 +14,14 @@ pub struct FpTrack {
     pub cover_url: String,
 }
 
+#[derive(Serialize)]
+pub struct FpStream {
+    pub url: String,
+    pub mime: String,
+    pub sample_rate: f64,
+    pub bit_depth: Option<u32>,
+}
+
 impl Core {
     pub async fn new() -> Result<Self, String> {
         let client = QobuzClient::new().map_err(|e| e.to_string())?;
@@ -30,6 +38,12 @@ impl Core {
         let page = self.client.search_tracks(query, 40, 0, None)
             .await.map_err(|e| e.to_string())?;
         Ok(page.items.iter().map(to_fp_track).collect())
+    }
+
+    pub async fn stream_url(&self, track_id: u64) -> Result<FpStream, String> {
+        let s = self.client.get_stream_url(track_id, Quality::Lossless)
+            .await.map_err(|e| e.to_string())?;
+        Ok(FpStream { url: s.url, mime: s.mime_type, sample_rate: s.sampling_rate, bit_depth: s.bit_depth })
     }
 }
 
