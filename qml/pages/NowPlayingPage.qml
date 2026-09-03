@@ -1,5 +1,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+import QtMultimedia 5.0
+import se.munkstolen.fiatpons 1.0
 import "../components"
 import ".."
 
@@ -10,12 +12,25 @@ Page {
     property string trackArtist: ""
     property string trackAlbum: ""
     property int trackId: 0
+    property string statusLine: ""
 
     function applySelectedTrack(track) {
         trackTitle = track.title
         trackArtist = track.artist
         trackAlbum = track.album
         trackId = track.id
+        statusLine = "Resolving…"
+        backend.streamUrl(track.id)
+    }
+
+    function handleStream(json) {
+        var data
+        try { data = JSON.parse(json) }
+        catch (e) { statusLine = "Bad response"; return }
+        if (data.error) { statusLine = "Error: " + data.error; return }
+        statusLine = ""
+        player.source = data.url
+        player.play()
     }
 
     function paint() { FiatPonsTheme.applyPalette(page) }
@@ -23,6 +38,17 @@ Page {
     Connections {
         target: FiatPonsTheme
         onAmbientChanged: page.paint()
+    }
+
+    Backend {
+        id: backend
+        onStreamReady: page.handleStream(json)
+    }
+
+    MediaPlayer {
+        id: player
+        autoPlay: false
+        onError: page.statusLine = "Playback error: " + errorString
     }
 
     Rectangle {
@@ -125,6 +151,28 @@ Page {
                         visible: text.length > 0
                     }
                 }
+            }
+
+            Button {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Play / Pause"
+                enabled: page.trackId !== 0
+                onClicked: {
+                    if (player.playbackState === MediaPlayer.PlayingState)
+                        player.pause()
+                    else
+                        player.play()
+                }
+            }
+
+            Label {
+                width: parent.width
+                text: page.statusLine
+                color: FiatPonsTheme.accent
+                font.pixelSize: Theme.fontSizeExtraSmall
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                visible: text.length > 0
             }
         }
 

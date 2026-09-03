@@ -6,7 +6,7 @@ import "pages"
 ApplicationWindow {
     id: app
 
-    initialPage: Component { PlayProbe { } }
+    initialPage: Component { NowPlayingPage { } }
     cover: Qt.resolvedUrl("cover/FiatPonsCover.qml")
     allowedOrientations: defaultAllowedOrientations
 
