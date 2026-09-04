@@ -6,11 +6,13 @@ import "pages"
 ApplicationWindow {
     id: app
 
-    // The shared play queue — reachable from any page as app.queue
+    // Shared, app-level state — every tab is just a view over these.
     property alias queue: theQueue
+    property alias playback: thePlayback
     Queue { id: theQueue }
+    Playback { id: thePlayback; queue: theQueue }
 
-    initialPage: Component { NowPlayingPage { } }
+    initialPage: Component { MainPage { } }
     cover: Qt.resolvedUrl("cover/FiatPonsCover.qml")
     allowedOrientations: defaultAllowedOrientations
     Component.onCompleted: FiatPonsTheme.applyPalette(app)
