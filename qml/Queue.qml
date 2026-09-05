@@ -1,7 +1,6 @@
-// The play queue. Pure state + an explicit currentChanged() signal that fires
-// exactly when the current track should be (re)loaded. All track objects are
-// stored and returned as plain COPIES (never live model.get references, which
-// go stale when the model mutates).
+// The play queue. Pure state + a currentChanged() signal fired exactly when the
+// current track should (re)load. Track objects are stored/returned as plain
+// COPIES (never live model.get references). Session-only: cleared on close.
 import QtQuick 2.0
 
 Item {
@@ -9,7 +8,6 @@ Item {
     property ListModel model: ListModel { }
     property int currentIndex: -1
 
-    // Emitted whenever the thing that should be playing changes.
     signal currentChanged()
 
     readonly property bool hasNext: currentIndex + 1 < model.count
@@ -20,7 +18,6 @@ Item {
                  album: t.album, cover_url: t.cover_url }
     }
 
-    // Fresh copy of the current track (function, so it can't go stale).
     function currentTrack() {
         if (currentIndex >= 0 && currentIndex < model.count) {
             var m = model.get(currentIndex)

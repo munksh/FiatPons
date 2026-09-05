@@ -72,6 +72,7 @@ Item {
                 IconButton {
                     anchors { top: parent.top; right: parent.right; margins: Theme.paddingMedium }
                     icon.source: "image://theme/icon-m-about"
+                    icon.color: FiatPonsTheme.primaryText
                     onClicked: { /* TODO: track info / credits */ }
                 }
             }
@@ -110,7 +111,7 @@ Item {
                 }
             }
 
-            // ---- Progress: elapsed | slider | total, all on one row ----
+            // ---- Progress: elapsed | slider | total ----
             Row {
                 width: parent.width
                 spacing: Theme.paddingSmall
@@ -128,6 +129,8 @@ Item {
                     maximumValue: app.playback.duration > 0 ? app.playback.duration : 1
                     enabled: app.playback.duration > 0
                     value: app.playback.position
+                    color: FiatPonsTheme.accent
+                    highlightColor: FiatPonsTheme.accent
                     onReleased: app.playback.seek(value)
                 }
                 Label {
@@ -145,44 +148,46 @@ Item {
                 spacing: Theme.paddingLarge
                 IconButton {
                     icon.source: "image://theme/icon-m-previous"
+                    icon.color: FiatPonsTheme.primaryText
                     enabled: app.queue.hasPrev
                     onClicked: app.playback.previous()
                 }
                 IconButton {
                     icon.source: app.playback.playing
                         ? "image://theme/icon-l-pause" : "image://theme/icon-l-play"
+                    icon.color: FiatPonsTheme.primaryText
                     enabled: section.track !== null
                     onClicked: app.playback.toggle()
                 }
                 IconButton {
                     icon.source: "image://theme/icon-m-next"
+                    icon.color: FiatPonsTheme.primaryText
                     enabled: app.queue.hasNext || app.playback.repeatMode > 0 || app.playback.shuffle
                     onClicked: app.playback.next()
                 }
             }
 
-            // ---- Secondary: favourite / shuffle / repeat / queue(Q) ----
+            // ---- Secondary: favourite / shuffle / repeat / Q ----
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Theme.paddingLarge * 1.5
                 IconButton {
                     icon.source: section.favourite
                         ? "image://theme/icon-m-favorite-selected" : "image://theme/icon-m-favorite"
-                    highlighted: section.favourite
+                    icon.color: section.favourite ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                     onClicked: section.favourite = !section.favourite
                 }
                 IconButton {
                     icon.source: "image://theme/icon-m-shuffle"
-                    highlighted: app.playback.shuffle
+                    icon.color: app.playback.shuffle ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                     onClicked: app.playback.shuffle = !app.playback.shuffle
                 }
                 IconButton {
                     icon.source: app.playback.repeatMode === 2
                         ? "image://theme/icon-m-repeat-single" : "image://theme/icon-m-repeat"
-                    highlighted: app.playback.repeatMode > 0
+                    icon.color: app.playback.repeatMode > 0 ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                     onClicked: app.playback.repeatMode = (app.playback.repeatMode + 1) % 3
                 }
-                // Queue as a compact "Q" (reads like Queue / Qobuz).
                 BackgroundItem {
                     width: Theme.iconSizeMedium
                     height: Theme.iconSizeMedium

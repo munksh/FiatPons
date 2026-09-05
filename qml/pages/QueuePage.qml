@@ -49,17 +49,16 @@ Page {
                 MenuItem { text: "Remove"; onClicked: delegateItem.remove() }
             }
 
-            // Remove this row and keep currentIndex pointing at the same track.
             function remove() {
                 var cur = app.queue.currentIndex
                 if (index === cur) {
                     app.queue.model.remove(index)
-                    // current track was removed -> load whatever now sits here
                     if (app.queue.model.count === 0) app.queue.clear()
                     else app.queue.goTo(Math.min(index, app.queue.model.count - 1))
                 } else {
                     app.queue.model.remove(index)
-                    if (index < cur) app.queue.currentIndex = cur - 1   // shift pointer, no reload
+                    if (index < cur) app.queue.currentIndex = cur - 1
+                    app.queue.persist()
                 }
             }
 

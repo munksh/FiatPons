@@ -1,9 +1,5 @@
-// App-level playback. Correctness rests on one fact: the C++ Backend worker
-// processes stream requests SERIALLY (FIFO), one response each, in order.
-// So we just count outstanding requests (pending). When a response arrives and
-// pending returns to 0, THAT response is the latest one requested — and
-// inflightTrack is guaranteed to be its track. Older responses are ignored.
-// No reqId, no phase machine, no deferred pump.
+// App-level playback. FIFO pending-count keeps picture/audio in sync and
+// next/prev correct. Session-only; nothing restored on launch.
 import QtQuick 2.0
 import QtMultimedia 5.0
 import se.munkstolen.fiatpons 1.0
@@ -12,10 +8,10 @@ Item {
     id: playback
     property var queue
 
-    property int pending: 0           // outstanding streamUrl requests
-    property bool shouldPlay: false   // start once the committed source loads
-    property var inflightTrack: null  // the track of the LATEST load()
-    property var nowTrack: null       // the track actually loaded — UI binds here
+    property int pending: 0
+    property bool shouldPlay: false
+    property var inflightTrack: null
+    property var nowTrack: null
 
     property string statusLine: ""
     property string quality: ""
@@ -33,7 +29,7 @@ Item {
     function load() {
         var t = queue ? queue.currentTrack() : null
         inflightTrack = t
-        shouldPlay = false            // cancel any pending auto-play for an older source
+        shouldPlay = false
         pending += 1
         log("load pending=" + pending + " id=" + (t ? t.id : 0) + " idx=" + (queue ? queue.currentIndex : -1))
         if (t) { statusLine = "Resolving\u2026"; backend.streamUrl(t.id) }
@@ -61,7 +57,7 @@ Item {
     function onStream(json) {
         pending -= 1
         if (pending < 0) pending = 0
-        if (pending > 0) { log("onStream superseded (pending=" + pending + "), ignore"); return }
+        if (pending > 0) { log("onStream superseded, ignore"); return }
         var data
         try { data = JSON.parse(json) } catch (e) { statusLine = "Bad response"; return }
         if (data.error) { log("onStream error: " + data.error); statusLine = "Error: " + data.error; return }
@@ -69,7 +65,7 @@ Item {
         if (data.bit_depth && data.sample_rate) quality = data.bit_depth + "-bit \u00B7 " + data.sample_rate + " kHz"
         else if (data.mime) quality = (data.mime.indexOf("flac") !== -1) ? "FLAC" : "MP3"
         else quality = ""
-        nowTrack = inflightTrack       // latest request -> matches this response
+        nowTrack = inflightTrack
         shouldPlay = true
         log("source set id=" + (nowTrack ? nowTrack.id : 0))
         player.source = data.url

@@ -4,12 +4,17 @@ import se.munkstolen.fiatpons 1.0
 import "../components"
 import ".."
 
-// Top-level SEARCH tab (an Item, lives inside the pager).
 Item {
     id: section
     clip: true
     property bool busy: false
     property string errorText: ""
+
+    // Apply the Fiat palette to this section's chrome (SearchField etc.) so it
+    // matches the theme like everything else, regardless of ambience.
+    function paint() { FiatPonsTheme.applyPalette(section) }
+    Component.onCompleted: paint()
+    Connections { target: FiatPonsTheme; onAmbientChanged: section.paint() }
 
     Backend {
         id: backend
@@ -39,6 +44,7 @@ Item {
                 id: searchField
                 width: parent.width
                 placeholderText: "Track, artist, or album"
+                color: FiatPonsTheme.primaryText
                 inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
                 EnterKey.iconSource: "image://theme/icon-m-enter-close"
                 EnterKey.onClicked: {
@@ -149,8 +155,6 @@ Item {
         running: section.busy
     }
 
-    // Empty / error state — a plain label that lives inside THIS section
-    // (so it can't float over other tabs like ViewPlaceholder did).
     Column {
         anchors.centerIn: parent
         width: parent.width - Theme.horizontalPageMargin * 4

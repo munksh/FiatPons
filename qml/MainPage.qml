@@ -3,8 +3,6 @@ import Sailfish.Silica 1.0
 import "sections"
 import "."
 
-// Host page: wordmark + settings tucked into the status row, a tab row, and a
-// horizontally-swiped pager holding the four top-level sections.
 Page {
     id: mainPage
     allowedOrientations: defaultAllowedOrientations
@@ -25,7 +23,6 @@ Page {
         }
     }
 
-    // ---- Top bar: wordmark + settings, raised into the status row ----
     Item {
         id: topBar
         anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -49,11 +46,11 @@ Page {
             anchors.rightMargin: Theme.horizontalPageMargin
             anchors.verticalCenter: wordmark.verticalCenter
             icon.source: "image://theme/icon-m-menu"
+            icon.color: FiatPonsTheme.primaryText
             onClicked: pageStack.push(Qt.resolvedUrl("pages/SettingsPage.qml"))
         }
     }
 
-    // ---- Tab bar ----
     Item {
         id: tabBar
         anchors { top: topBar.bottom; left: parent.left; right: parent.right }
