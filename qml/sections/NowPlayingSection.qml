@@ -171,11 +171,20 @@ Item {
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Theme.paddingLarge * 1.5
-                IconButton {
-                    icon.source: section.favourite
-                        ? "image://theme/icon-m-favorite-selected" : "image://theme/icon-m-favorite"
-                    icon.color: section.favourite ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                BackgroundItem {
+                    width: Theme.iconSizeMedium
+                    height: Theme.iconSizeMedium
+                    anchors.verticalCenter: parent.verticalCenter
+
                     onClicked: section.favourite = !section.favourite
+
+                    Label {
+                        anchors.centerIn: parent
+                        text: section.favourite ? "\u2665" : "\u2661"
+                        color: section.favourite ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.family: FiatPonsTheme.serif
+                    }
                 }
                 IconButton {
                     icon.source: "image://theme/icon-m-shuffle"

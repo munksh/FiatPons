@@ -32,6 +32,12 @@ OTHER_FILES += \
     qml/sections/LibrarySection.qml \
     qml/sections/DiscoverSection.qml \
     qml/pages/QueuePage.qml \
+    qml/pages/SettingsPage.qml \
+    qml/pages/AlbumPage.qml \
+    qml/pages/ArtistPage.qml \
+    qml/pages/FavouritesPage.qml \
+    qml/pages/PlaylistPage.qml \
+    qml/pages/PlaylistsPage.qml \
     qml/components/PageHead.qml \
     qml/components/EmptyNote.qml \
     qml/cover/FiatPonsCover.qml \
@@ -61,6 +67,12 @@ DISTFILES += \
     qml/sections/LibrarySection.qml \
     qml/sections/DiscoverSection.qml \
     qml/pages/QueuePage.qml \
+    qml/pages/SettingsPage.qml \
+    qml/pages/AlbumPage.qml \
+    qml/pages/ArtistPage.qml \
+    qml/pages/FavouritesPage.qml \
+    qml/pages/PlaylistPage.qml \
+    qml/pages/PlaylistsPage.qml \
     qml/components/PageHead.qml \
     qml/components/EmptyNote.qml \
     qml/cover/FiatPonsCover.qml \
