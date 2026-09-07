@@ -78,7 +78,6 @@ Item {
 
     property bool favourite: false
     property bool favouriteBusy: false
-    property bool moreActionsOpen: false
 
     onTrackChanged: refreshFavouriteState()
 
@@ -280,290 +279,88 @@ Item {
                 }
             }
 
-            // ---- Secondary controls ----
+            // ---- Secondary: favourite / shuffle / repeat / Q ----
             Row {
-                id: secondaryControls
-
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: Theme.paddingLarge
-
-                // Favourite
-                Item {
+                spacing: Theme.paddingLarge * 1.5
+                BackgroundItem {
                     width: Theme.iconSizeMedium
                     height: Theme.iconSizeMedium
                     anchors.verticalCenter: parent.verticalCenter
+
+                    enabled: section.track !== null
+                             && !section.favouriteBusy
+                    onClicked: section.toggleFavourite()
 
                     Label {
                         anchors.centerIn: parent
                         text: section.favouriteBusy
                               ? "\u00B7"
                               : section.favourite ? "\u2665" : "\u2661"
-                        color: section.favourite
-                               ? FiatPonsTheme.accent
-                               : FiatPonsTheme.primaryText
+                        color: section.favourite ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                         font.pixelSize: Theme.fontSizeLarge
                         font.family: FiatPonsTheme.serif
                     }
-
-                    MouseArea {
-                        id: favouriteMouse
-                        anchors.fill: parent
-                        enabled: section.track !== null
-                                 && !section.favouriteBusy
-                        onClicked: section.toggleFavourite()
-                    }
-
-                    scale: favouriteMouse.pressed ? 0.88 : 1.0
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: 90
-                            easing.type: Easing.OutQuad
-                        }
-                    }
                 }
-
-                // Shuffle
                 IconButton {
                     icon.source: "image://theme/icon-m-shuffle"
-                    icon.color: app.playback.shuffle
-                                ? FiatPonsTheme.accent
-                                : FiatPonsTheme.primaryText
-                    onClicked:
-                        app.playback.shuffle = !app.playback.shuffle
+                    icon.color: app.playback.shuffle ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                    onClicked: app.playback.shuffle = !app.playback.shuffle
                 }
-
-                // Repeat
                 IconButton {
                     icon.source: app.playback.repeatMode === 2
-                                 ? "image://theme/icon-m-repeat-single"
-                                 : "image://theme/icon-m-repeat"
-                    icon.color: app.playback.repeatMode > 0
-                                ? FiatPonsTheme.accent
-                                : FiatPonsTheme.primaryText
-                    onClicked:
-                        app.playback.repeatMode =
-                            (app.playback.repeatMode + 1) % 3
+                        ? "image://theme/icon-m-repeat-single" : "image://theme/icon-m-repeat"
+                    icon.color: app.playback.repeatMode > 0 ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                    onClicked: app.playback.repeatMode = (app.playback.repeatMode + 1) % 3
                 }
-
-                // Queue
-                Item {
+                BackgroundItem {
+                    id: moreMenuButton
                     width: Theme.iconSizeMedium
                     height: Theme.iconSizeMedium
                     anchors.verticalCenter: parent.verticalCenter
 
+                    onClicked: moreMenu.open(moreMenuButton)
+
+                    Label {
+                        anchors.centerIn: parent
+                        text: "\u22EF"
+                        font.pixelSize: Theme.fontSizeLarge
+                        color: highlighted ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                    }
+
+                    ContextMenu {
+                        id: moreMenu
+
+                        MenuItem {
+                            text: "Add to playlist"
+                            onClicked: section.addCurrentToPlaylist()
+                        }
+
+                        MenuItem {
+                            text: "Add to new playlist"
+                            onClicked: section.addCurrentToNewPlaylist()
+                        }
+                    }
+                }
+
+                BackgroundItem {
+                    width: Theme.iconSizeMedium
+                    height: Theme.iconSizeMedium
+                    anchors.verticalCenter: parent.verticalCenter
+                    onClicked: pageStack.push(Qt.resolvedUrl("../pages/QueuePage.qml"))
                     Label {
                         anchors.centerIn: parent
                         text: "Q"
                         font.pixelSize: Theme.fontSizeLarge
                         font.family: FiatPonsTheme.serif
-                        color: queueMouse.pressed
-                               ? FiatPonsTheme.accent
-                               : FiatPonsTheme.primaryText
+                        color: highlighted ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                     }
-
                     Label {
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-
+                        anchors { bottom: parent.bottom; right: parent.right }
                         visible: app.queue.model.count > 0
                         text: app.queue.model.count
                         font.pixelSize: Theme.fontSizeTiny
                         color: FiatPonsTheme.accent
-                    }
-
-                    MouseArea {
-                        id: queueMouse
-                        anchors.fill: parent
-
-                        onClicked: {
-                            section.moreActionsOpen = false
-                            pageStack.push(
-                                Qt.resolvedUrl("../pages/QueuePage.qml")
-                            )
-                        }
-                    }
-
-                    scale: queueMouse.pressed ? 0.88 : 1.0
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: 90
-                            easing.type: Easing.OutQuad
-                        }
-                    }
-                }
-
-                // More — intentionally placed after Q.
-                Item {
-                    id: moreButton
-
-                    width: Theme.iconSizeMedium
-                    height: Theme.iconSizeMedium
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Label {
-                        anchors.centerIn: parent
-
-                        text: "\u22EF"
-                        color: section.moreActionsOpen
-                               || moreMouse.pressed
-                               ? FiatPonsTheme.accent
-                               : FiatPonsTheme.primaryText
-                        font.pixelSize: Theme.fontSizeLarge
-
-                        rotation: section.moreActionsOpen ? 90 : 0
-
-                        Behavior on rotation {
-                            NumberAnimation {
-                                duration: 150
-                                easing.type: Easing.OutQuad
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        id: moreMouse
-                        anchors.fill: parent
-                        enabled: section.track !== null
-
-                        onClicked:
-                            section.moreActionsOpen =
-                                !section.moreActionsOpen
-                    }
-
-                    scale: moreMouse.pressed ? 0.88 : 1.0
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: 90
-                            easing.type: Easing.OutQuad
-                        }
-                    }
-                }
-            }
-
-            // ---- Inline playlist actions ----
-            Item {
-                id: moreActions
-
-                width: parent.width
-                height: section.moreActionsOpen
-                        ? actionColumn.height
-                        : 0
-                clip: true
-                opacity: section.moreActionsOpen ? 1.0 : 0.0
-
-                Behavior on height {
-                    NumberAnimation {
-                        duration: 170
-                        easing.type: Easing.OutQuad
-                    }
-                }
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 140 }
-                }
-
-                Column {
-                    id: actionColumn
-                    width: parent.width
-
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: FiatPonsTheme.innerBorder
-                    }
-
-                    BackgroundItem {
-                        width: parent.width
-                        height: Theme.itemSizeSmall
-                        enabled: section.track !== null
-
-                        onClicked: {
-                            section.moreActionsOpen = false
-                            section.addCurrentToPlaylist()
-                        }
-
-                        Row {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.leftMargin:
-                                Theme.horizontalPageMargin
-                            anchors.rightMargin:
-                                Theme.horizontalPageMargin
-                            anchors.verticalCenter:
-                                parent.verticalCenter
-                            spacing: Theme.paddingMedium
-
-                            Label {
-                                text: "+"
-                                color: highlighted
-                                       ? FiatPonsTheme.accent
-                                       : FiatPonsTheme.secondaryText
-                                font.pixelSize: Theme.fontSizeLarge
-                            }
-
-                            Label {
-                                text: "Add to playlist"
-                                color: highlighted
-                                       ? FiatPonsTheme.accent
-                                       : FiatPonsTheme.primaryText
-                                font.pixelSize: Theme.fontSizeSmall
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: FiatPonsTheme.innerBorder
-                    }
-
-                    BackgroundItem {
-                        width: parent.width
-                        height: Theme.itemSizeSmall
-                        enabled: section.track !== null
-
-                        onClicked: {
-                            section.moreActionsOpen = false
-                            section.addCurrentToNewPlaylist()
-                        }
-
-                        Row {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.leftMargin:
-                                Theme.horizontalPageMargin
-                            anchors.rightMargin:
-                                Theme.horizontalPageMargin
-                            anchors.verticalCenter:
-                                parent.verticalCenter
-                            spacing: Theme.paddingMedium
-
-                            Label {
-                                text: "\u266B"
-                                color: highlighted
-                                       ? FiatPonsTheme.accent
-                                       : FiatPonsTheme.secondaryText
-                                font.pixelSize: Theme.fontSizeLarge
-                                font.family: FiatPonsTheme.serif
-                            }
-
-                            Label {
-                                text: "Add to new playlist"
-                                color: highlighted
-                                       ? FiatPonsTheme.accent
-                                       : FiatPonsTheme.primaryText
-                                font.pixelSize: Theme.fontSizeSmall
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: FiatPonsTheme.innerBorder
                     }
                 }
             }
