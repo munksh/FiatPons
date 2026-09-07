@@ -22,8 +22,6 @@ Page {
     property string label: ""
     property bool busy: true
     property string errorText: ""
-    property bool favourite: false
-    property bool favouriteBusy: false
 
     property bool componentReady: false
 
@@ -54,26 +52,6 @@ Page {
         onAmbientChanged: page.paint()
     }
 
-    function refreshFavourite() {
-        if (albumId.length === 0)
-            return
-
-        favouriteBusy = true
-        backend.itemFavouriteState("album", albumId)
-    }
-
-    function toggleFavourite() {
-        if (albumId.length === 0 || favouriteBusy)
-            return
-
-        favouriteBusy = true
-        backend.setItemFavourite(
-            "album",
-            albumId,
-            !favourite
-        )
-    }
-
     function fmtDuration(secs) {
         if (!secs || secs <= 0) return ""
         var m = Math.floor(secs / 60)
@@ -84,50 +62,6 @@ Page {
 
     Backend {
         id: backend
-        onItemFavouriteStateComplete: {
-            var data
-
-            try {
-                data = JSON.parse(json)
-            } catch (e) {
-                favouriteBusy = false
-                return
-            }
-
-            if (data.item_type !== "album"
-                    || String(data.item_id) !== albumId)
-                return
-
-            favouriteBusy = false
-
-            if (!data.error)
-                favourite = data.favourite === true
-        }
-
-        onSetItemFavouriteComplete: {
-            var data
-
-            try {
-                data = JSON.parse(json)
-            } catch (e) {
-                favouriteBusy = false
-                return
-            }
-
-            if (data.item_type !== "album"
-                    || String(data.item_id) !== albumId)
-                return
-
-            favouriteBusy = false
-
-            if (data.error) {
-                errorText = data.error
-                return
-            }
-
-            favourite = data.favourite === true
-        }
-
         onAlbumComplete: {
             busy = false
             tracksModel.clear()
@@ -144,7 +78,6 @@ Page {
             trackCount = a.track_count || 0
             durationSecs = a.duration_secs || 0
             label = a.label || ""
-            refreshFavourite()
             var items = data.tracks || []
             for (var i = 0; i < items.length; i++) {
                 var t = items[i]
@@ -230,46 +163,6 @@ Page {
                     font.pixelSize: Theme.fontSizeMedium
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                }
-            }
-
-            Item {
-                width: parent.width
-                height: Theme.iconSizeMedium
-
-                Item {
-                    id: albumHeart
-                    anchors.centerIn: parent
-                    width: Theme.iconSizeMedium
-                    height: Theme.iconSizeMedium
-
-                    Label {
-                        anchors.centerIn: parent
-                        text: page.favouriteBusy
-                              ? "\u00B7"
-                              : page.favourite ? "\u2665" : "\u2661"
-                        color: page.favourite
-                               ? FiatPonsTheme.accent
-                               : FiatPonsTheme.primaryText
-                        font.pixelSize: Theme.fontSizeLarge
-                        font.family: FiatPonsTheme.serif
-                    }
-
-                    MouseArea {
-                        id: albumHeartMouse
-                        anchors.fill: parent
-                        enabled: !page.favouriteBusy
-                        onClicked: page.toggleFavourite()
-                    }
-
-                    scale: albumHeartMouse.pressed ? 0.88 : 1.0
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: 90
-                            easing.type: Easing.OutQuad
-                        }
-                    }
                 }
             }
 

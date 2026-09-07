@@ -30,29 +30,13 @@ Item {
         onAmbientChanged: section.paint()
     }
 
-    function clearModels() {
-        albumsModel.clear()
-        tracksModel.clear()
-        artistsModel.clear()
-    }
-
-    function resultCount() {
-        if (mode === "albums")
-            return albumsModel.count
-
-        if (mode === "tracks")
-            return tracksModel.count
-
-        return artistsModel.count
-    }
-
     function runSearch() {
         if (lastQuery.length === 0)
             return
 
         busy = true
         errorText = ""
-        clearModels()
+        resultsModel.clear()
 
         if (mode === "albums")
             backend.searchAlbums(lastQuery)
@@ -67,7 +51,7 @@ Item {
             return
 
         mode = nextMode
-        clearModels()
+        resultsModel.clear()
         runSearch()
     }
 
@@ -95,13 +79,7 @@ Item {
         for (var i = 0; i < items.length; i++) {
             var item = items[i]
             item.id = String(item.id)
-
-            if (kind === "albums")
-                albumsModel.append(item)
-            else if (kind === "tracks")
-                tracksModel.append(item)
-            else
-                artistsModel.append(item)
+            resultsModel.append(item)
         }
     }
 
@@ -116,15 +94,7 @@ Item {
     }
 
     ListModel {
-        id: albumsModel
-    }
-
-    ListModel {
-        id: tracksModel
-    }
-
-    ListModel {
-        id: artistsModel
+        id: resultsModel
     }
 
     Backend {
@@ -231,9 +201,7 @@ Item {
         anchors.fill: parent
         clip: true
         visible: section.mode !== "artists"
-        model: section.mode === "albums"
-               ? albumsModel
-               : tracksModel
+        model: resultsModel
         header: headerComponent
 
         delegate: ListItem {
@@ -367,7 +335,7 @@ Item {
         anchors.fill: parent
         clip: true
         visible: section.mode === "artists"
-        model: artistsModel
+        model: resultsModel
 
         header: headerComponent
         cellWidth: width / 2
@@ -438,7 +406,7 @@ Item {
         anchors.centerIn: parent
         width: parent.width - Theme.horizontalPageMargin * 4
         spacing: Theme.paddingSmall
-        visible: !section.busy && section.resultCount() === 0
+        visible: !section.busy && resultsModel.count === 0
 
         Label {
             width: parent.width

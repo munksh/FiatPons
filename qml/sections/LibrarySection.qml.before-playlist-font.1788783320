@@ -42,7 +42,6 @@ Item {
         errorText = ""
         statusText = ""
         favouritesModel.clear()
-        artistFavouritesModel.clear()
         backend.favourites(favouriteMode)
     }
 
@@ -105,10 +104,6 @@ Item {
     }
 
     ListModel {
-        id: artistFavouritesModel
-    }
-
-    ListModel {
         id: playlistsModel
     }
 
@@ -122,7 +117,6 @@ Item {
         onFavouritesComplete: {
             section.busy = false
             favouritesModel.clear()
-            artistFavouritesModel.clear()
 
             var data
 
@@ -150,11 +144,7 @@ Item {
             for (var i = 0; i < items.length; i++) {
                 var item = items[i]
                 item.id = String(item.id)
-
-                if (section.favouriteMode === "artists")
-                    artistFavouritesModel.append(item)
-                else
-                    favouritesModel.append(item)
+                favouritesModel.append(item)
             }
         }
 
@@ -518,7 +508,7 @@ Item {
             anchors.fill: parent
             clip: true
             visible: section.libraryMode === "favourites" && section.favouriteMode === "artists"
-            model: artistFavouritesModel
+            model: favouritesModel
 
             cellWidth: width / 2
             cellHeight: section.artistPortraitSize + Theme.paddingLarge + Theme.fontSizeSmall * 2
@@ -688,8 +678,7 @@ Item {
                             text: model.name === undefined ? "" : model.name
                             color: playlistRow.highlighted ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                             font.pixelSize: Theme.fontSizeMedium
-                            font.family: Theme.fontFamily
-                            font.weight: Font.Normal
+                            font.family: FiatPonsTheme.serif
                             truncationMode: TruncationMode.Fade
                         }
 
@@ -727,9 +716,7 @@ Item {
                          || (
                              section.libraryMode === "playlists"
                              ? playlistsModel.count === 0
-                             : section.favouriteMode === "artists"
-                               ? artistFavouritesModel.count === 0
-                               : favouritesModel.count === 0
+                             : favouritesModel.count === 0
                          )
                      )
 

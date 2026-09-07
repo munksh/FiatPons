@@ -266,55 +266,23 @@ impl Core {
                     .await
                     .map_err(|e| e.to_string())?;
 
-                let values = raw
+                let artists = raw
                     .get("artists")
                     .and_then(|v| v.get("items"))
                     .and_then(|v| v.as_array())
-                    .cloned()
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|value| {
+                                serde_json::from_value::<qbz_models::Artist>(
+                                    value.clone()
+                                )
+                                .ok()
+                            })
+                            .map(|artist| to_fp_artist(&artist))
+                            .collect()
+                    })
                     .unwrap_or_else(Vec::new);
-
-                let mut artists = Vec::new();
-
-                for value in values {
-                    let parsed: Result<qbz_models::Artist, _> =
-                        serde_json::from_value(value.clone());
-
-                    let mut artist = match parsed {
-                        Ok(parsed_artist) => to_fp_artist(&parsed_artist),
-                        Err(_) => basic_artist_from_value(&value),
-                    };
-
-                    if artist.id > 0
-                        && (artist.name.is_empty()
-                            || artist.image_url.is_empty())
-                    {
-                        if let Ok(detail) =
-                            self.client.get_artist(artist.id, false).await
-                        {
-                            let detailed = to_fp_artist(&detail);
-
-                            if artist.name.is_empty() {
-                                artist.name = detailed.name;
-                            }
-
-                            if artist.image_url.is_empty() {
-                                artist.image_url = detailed.image_url;
-                            }
-
-                            if artist.bio.is_empty() {
-                                artist.bio = detailed.bio;
-                            }
-
-                            if artist.bio_full.is_empty() {
-                                artist.bio_full = detailed.bio_full;
-                            }
-                        }
-                    }
-
-                    if artist.id > 0 {
-                        artists.push(artist);
-                    }
-                }
 
                 Ok(FavouritesPayload {
                     tracks: Vec::new(),
@@ -322,6 +290,7 @@ impl Core {
                     artists,
                 })
             }
+
             _ => Err(format!("unknown favourites mode: {mode}")),
         }
     }
@@ -672,76 +641,6 @@ fn album_from_value(v: &Value) -> FpAlbum {
             .and_then(|x| x.as_str())
             .unwrap_or_default()
             .to_string(),
-    }
-}
-
-fn value_as_string(v: &Value, key: &str) -> String {
-    v.get(key)
-        .and_then(|value| {
-            if let Some(text) = value.as_str() {
-                Some(text.to_string())
-            } else {
-                value.as_u64().map(|number| number.to_string())
-            }
-        })
-        .unwrap_or_default()
-}
-
-fn artist_id_from_value(v: &Value) -> u64 {
-    let source = v.get("artist").unwrap_or(v);
-
-    source
-        .get("id")
-        .and_then(|value| {
-            if let Some(number) = value.as_u64() {
-                Some(number)
-            } else {
-                value
-                    .as_str()
-                    .and_then(|text| text.parse().ok())
-            }
-        })
-        .unwrap_or_default()
-}
-
-fn artist_image_from_value(v: &Value) -> String {
-    let source = v.get("artist").unwrap_or(v);
-
-    source
-        .get("image")
-        .and_then(|image| {
-            image
-                .as_str()
-                .or_else(|| image.get("mega").and_then(|x| x.as_str()))
-                .or_else(|| image.get("extralarge").and_then(|x| x.as_str()))
-                .or_else(|| image.get("large").and_then(|x| x.as_str()))
-                .or_else(|| image.get("medium").and_then(|x| x.as_str()))
-                .or_else(|| image.get("small").and_then(|x| x.as_str()))
-                .or_else(|| image.get("thumbnail").and_then(|x| x.as_str()))
-        })
-        .or_else(|| {
-            source
-                .get("picture")
-                .and_then(|value| value.as_str())
-        })
-        .or_else(|| {
-            source
-                .get("image_url")
-                .and_then(|value| value.as_str())
-        })
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn basic_artist_from_value(v: &Value) -> FpArtist {
-    let source = v.get("artist").unwrap_or(v);
-
-    FpArtist {
-        id: artist_id_from_value(v),
-        name: value_as_string(source, "name"),
-        image_url: artist_image_from_value(v),
-        bio: String::new(),
-        bio_full: String::new(),
     }
 }
 

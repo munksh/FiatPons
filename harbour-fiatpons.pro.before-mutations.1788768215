@@ -38,11 +38,8 @@ OTHER_FILES += \
     qml/pages/FavouritesPage.qml \
     qml/pages/PlaylistPage.qml \
     qml/pages/PlaylistsPage.qml \
-    qml/pages/NewPlaylistDialog.qml \
-    qml/pages/PlaylistPickerPage.qml \
     qml/components/PageHead.qml \
     qml/components/EmptyNote.qml \
-    qml/components/ArtistPortrait.qml \
     qml/cover/FiatPonsCover.qml \
     harbour-fiatpons.desktop \
     rpm/harbour-fiatpons.spec
@@ -76,11 +73,8 @@ DISTFILES += \
     qml/pages/FavouritesPage.qml \
     qml/pages/PlaylistPage.qml \
     qml/pages/PlaylistsPage.qml \
-    qml/pages/NewPlaylistDialog.qml \
-    qml/pages/PlaylistPickerPage.qml \
     qml/components/PageHead.qml \
     qml/components/EmptyNote.qml \
-    qml/components/ArtistPortrait.qml \
     qml/cover/FiatPonsCover.qml \
     harbour-fiatpons.desktop \
     rpm/harbour-fiatpons.spec

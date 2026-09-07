@@ -2,7 +2,6 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 import QtMultimedia 5.0
 import QtGraphicalEffects 1.0
-import se.munkstolen.fiatpons 1.0
 import "../components"
 import ".."
 
@@ -15,59 +14,12 @@ Item {
     readonly property string trackAlbum:  track ? track.album  : ""
     readonly property string coverUrl:    (track && track.cover_url) ? track.cover_url : ""
 
-    function currentTrackId() {
-        if (!track || track.id === undefined)
-            return 0
-
-        var value = parseInt(track.id)
-        return isNaN(value) ? 0 : value
-    }
-
-    function refreshFavouriteState() {
-        var id = currentTrackId()
-
-        if (id <= 0) {
-            favourite = false
-            favouriteBusy = false
-            return
-        }
-
-        favouriteBusy = true
-        backend.trackFavouriteState(id)
-    }
-
-    function toggleFavourite() {
-        var id = currentTrackId()
-
-        if (id <= 0 || favouriteBusy)
-            return
-
-        favouriteBusy = true
-        backend.setTrackFavourite(id, !favourite)
-    }
-
     function addCurrentToPlaylist() {
-        var id = currentTrackId()
-
-        if (id <= 0)
-            return
-
-        pageStack.push(
-            Qt.resolvedUrl("../pages/PlaylistPickerPage.qml"),
-            { trackIdStr: String(id) }
-        )
+        app.playback.statusLine = "Add to playlist is not wired yet"
     }
 
     function addCurrentToNewPlaylist() {
-        var id = currentTrackId()
-
-        if (id <= 0)
-            return
-
-        pageStack.push(
-            Qt.resolvedUrl("../pages/NewPlaylistDialog.qml"),
-            { trackIdStr: String(id) }
-        )
+        app.playback.statusLine = "New playlist creation is not wired yet"
     }
 
     function fmt(ms) {
@@ -77,62 +29,6 @@ Item {
     }
 
     property bool favourite: false
-    property bool favouriteBusy: false
-
-    onTrackChanged: refreshFavouriteState()
-
-    Component.onCompleted: refreshFavouriteState()
-
-    Backend {
-        id: backend
-    }
-
-    Connections {
-        target: backend
-
-        onTrackFavouriteStateComplete: {
-            section.favouriteBusy = false
-
-            var data
-
-            try {
-                data = JSON.parse(json)
-            } catch (error) {
-                app.playback.statusLine = "Could not read favourite state"
-                return
-            }
-
-            if (data.error) {
-                app.playback.statusLine = data.error
-                return
-            }
-
-            if (parseInt(data.track_id) === section.currentTrackId())
-                section.favourite = data.favourite === true
-        }
-
-        onSetTrackFavouriteComplete: {
-            section.favouriteBusy = false
-
-            var data
-
-            try {
-                data = JSON.parse(json)
-            } catch (error) {
-                app.playback.statusLine = "Could not update favourite"
-                return
-            }
-
-            if (data.error) {
-                app.playback.statusLine = data.error
-                section.refreshFavouriteState()
-                return
-            }
-
-            if (parseInt(data.track_id) === section.currentTrackId())
-                section.favourite = data.favourite === true
-        }
-    }
 
     SilicaFlickable {
         id: flick
@@ -288,15 +184,11 @@ Item {
                     height: Theme.iconSizeMedium
                     anchors.verticalCenter: parent.verticalCenter
 
-                    enabled: section.track !== null
-                             && !section.favouriteBusy
-                    onClicked: section.toggleFavourite()
+                    onClicked: section.favourite = !section.favourite
 
                     Label {
                         anchors.centerIn: parent
-                        text: section.favouriteBusy
-                              ? "\u00B7"
-                              : section.favourite ? "\u2665" : "\u2661"
+                        text: section.favourite ? "\u2665" : "\u2661"
                         color: section.favourite ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                         font.pixelSize: Theme.fontSizeLarge
                         font.family: FiatPonsTheme.serif

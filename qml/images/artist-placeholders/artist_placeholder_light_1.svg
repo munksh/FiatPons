@@ -1,17 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256"
+     height="256"
+     viewBox="0 0 256 256">
+
   <defs>
-    <radialGradient id="bg" cx="42%" cy="25%" r="84%">
-      <stop offset="0%" stop-color="#f4ddbc"/>
-      <stop offset="62%" stop-color="#d7b99a"/>
-      <stop offset="100%" stop-color="#a98273"/>
+    <radialGradient id="backgroundGradient"
+                    cx="42%"
+                    cy="26%"
+                    r="88%">
+      <stop offset="0"
+            stop-color="#F3DED0"
+            stop-opacity="0.34"/>
+      <stop offset="0.55"
+            stop-color="#E4CFC0"/>
+      <stop offset="1"
+            stop-color="#E4CFC0"/>
     </radialGradient>
-    <linearGradient id="robe" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0%" stop-color="#8a5964"/>
-      <stop offset="100%" stop-color="#f0c88e"/>
+
+    <linearGradient id="bodyGradient"
+                    x1="0"
+                    y1="0"
+                    x2="1"
+                    y2="1">
+      <stop offset="0"
+            stop-color="#B89E9B"/>
+      <stop offset="1"
+            stop-color="#B89E9B"
+            stop-opacity="0.82"/>
     </linearGradient>
   </defs>
-  <circle cx="128" cy="128" r="126" fill="url(#bg)"/>
-  <circle cx="128" cy="91" r="35" fill="#8a5146" opacity="0.78"/>
-  <path d="M54 230c10-56 43-88 74-88s64 32 74 88z" fill="url(#robe)" opacity="0.82"/>
-  <circle cx="128" cy="128" r="122" fill="none" stroke="#7b4d48" stroke-width="3" opacity="0.25"/>
+
+  <!-- Transparent corners outside the portrait circle. -->
+  <circle cx="128"
+          cy="128"
+          r="123"
+          fill="url(#backgroundGradient)"/>
+
+  <!--
+      Minimal silhouette. The bottom continues below the visible circle,
+      so there is no straight horizontal ending.
+  -->
+  <path d="M53 292
+           C54 226 68 177 91 148
+           C102 134 114 126 128 126
+           C142 126 154 134 165 148
+           C188 177 202 226 203 292
+           Z"
+        fill="url(#bodyGradient)"/>
+
+  <!-- Head overlaps the body, matching the supplied reference. -->
+  <circle cx="128"
+          cy="91"
+          r="30"
+          fill="#A86F59"/>
+
+  <!-- Subtle portrait rim. -->
+  <circle cx="128"
+          cy="128"
+          r="122"
+          fill="none"
+          stroke="#A58F91"
+          stroke-width="4"/>
 </svg>

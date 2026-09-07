@@ -16,87 +16,15 @@ Page {
     property string name: ""
     property string imageUrl: ""
     property string bio: ""
-    property string bioFull: ""
-    property bool favourite: false
-    property bool favouriteBusy: false
     property bool busy: true
     property string errorText: ""
 
-    function paint() {
-        FiatPonsTheme.applyPalette(page)
-    }
-
-    function refreshFavourite() {
-        if (artistId <= 0)
-            return
-
-        favouriteBusy = true
-        backend.itemFavouriteState(
-            "artist",
-            String(artistId)
-        )
-    }
-
-    function toggleFavourite() {
-        if (artistId <= 0 || favouriteBusy)
-            return
-
-        favouriteBusy = true
-        backend.setItemFavourite(
-            "artist",
-            String(artistId),
-            !favourite
-        )
-    }
+    function paint() { FiatPonsTheme.applyPalette(page) }
     Component.onCompleted: { paint(); if (artistId > 0) backend.artist(artistId) }
     Connections { target: FiatPonsTheme; onAmbientChanged: page.paint() }
 
     Backend {
         id: backend
-        onItemFavouriteStateComplete: {
-            var data
-
-            try {
-                data = JSON.parse(json)
-            } catch (e) {
-                favouriteBusy = false
-                return
-            }
-
-            if (data.item_type !== "artist"
-                    || String(data.item_id) !== String(artistId))
-                return
-
-            favouriteBusy = false
-
-            if (!data.error)
-                favourite = data.favourite === true
-        }
-
-        onSetItemFavouriteComplete: {
-            var data
-
-            try {
-                data = JSON.parse(json)
-            } catch (e) {
-                favouriteBusy = false
-                return
-            }
-
-            if (data.item_type !== "artist"
-                    || String(data.item_id) !== String(artistId))
-                return
-
-            favouriteBusy = false
-
-            if (data.error) {
-                errorText = data.error
-                return
-            }
-
-            favourite = data.favourite === true
-        }
-
         onArtistComplete: {
             busy = false
             var data
@@ -107,8 +35,6 @@ Page {
             name = a.name || ""
             imageUrl = a.image_url || ""
             bio = a.bio || ""
-            bioFull = a.bio_full || a.bio || ""
-            refreshFavourite()
             var items = data.albums || []
             for (var i = 0; i < items.length; i++) {
                 var al = items[i]
@@ -151,13 +77,29 @@ Page {
 
             PageHeader { title: "Artist" }
 
-            ArtistPortrait {
-                width: Theme.itemSizeHuge * 1.35
+            Rectangle {
+                width: Theme.itemSizeLarge * 1.6
                 height: width
+                radius: width / 2
                 anchors.horizontalCenter: parent.horizontalCenter
-                artistId: String(page.artistId)
-                imageUrl: page.imageUrl
-                pressed: false
+                color: FiatPonsTheme.recessFill
+                border.color: FiatPonsTheme.recessBorder
+                border.width: 1
+                clip: true
+                Image {
+                    anchors.fill: parent
+                    source: page.imageUrl
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: true
+                }
+                Label {
+                    anchors.centerIn: parent
+                    text: "\u263A"
+                    color: FiatPonsTheme.secondaryText
+                    font.pixelSize: Theme.fontSizeHuge
+                    visible: page.imageUrl.length === 0
+                }
             }
 
             Label {
@@ -169,46 +111,6 @@ Page {
                 font.family: FiatPonsTheme.serif
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-            }
-
-            Item {
-                width: parent.width
-                height: Theme.iconSizeMedium
-
-                Item {
-                    id: artistHeart
-                    anchors.centerIn: parent
-                    width: Theme.iconSizeMedium
-                    height: Theme.iconSizeMedium
-
-                    Label {
-                        anchors.centerIn: parent
-                        text: page.favouriteBusy
-                              ? "\u00B7"
-                              : page.favourite ? "\u2665" : "\u2661"
-                        color: page.favourite
-                               ? FiatPonsTheme.accent
-                               : FiatPonsTheme.primaryText
-                        font.pixelSize: Theme.fontSizeLarge
-                        font.family: FiatPonsTheme.serif
-                    }
-
-                    MouseArea {
-                        id: artistHeartMouse
-                        anchors.fill: parent
-                        enabled: !page.favouriteBusy
-                        onClicked: page.toggleFavourite()
-                    }
-
-                    scale: artistHeartMouse.pressed ? 0.88 : 1.0
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: 90
-                            easing.type: Easing.OutQuad
-                        }
-                    }
-                }
             }
 
             // ---- Bio: fixed two lines, "Read more" drills to BioPage. Fixed
@@ -238,7 +140,7 @@ Page {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: pageStack.push(Qt.resolvedUrl("BioPage.qml"),
-                            { artistName: page.name, bio: page.bioFull })
+                            { artistName: page.name, bio: page.bio })
                     }
                 }
             }

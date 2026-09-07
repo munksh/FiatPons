@@ -45,7 +45,6 @@ pub struct FpArtist {
     pub name: String,
     pub image_url: String,
     pub bio: String,
-    pub bio_full: String,
 }
 
 #[derive(Serialize)]
@@ -157,10 +156,9 @@ impl Core {
             .await
             .map_err(|e| e.to_string())?;
 
-        let value = serde_json::to_value(&artist)
-            .map_err(|e| e.to_string())?;
-
         let fp_artist = to_fp_artist(&artist);
+
+        let value = serde_json::to_value(&artist).map_err(|e| e.to_string())?;
         let albums = value
             .get("albums")
             .and_then(|v| v.get("items"))
@@ -266,55 +264,12 @@ impl Core {
                     .await
                     .map_err(|e| e.to_string())?;
 
-                let values = raw
+                let artists = raw
                     .get("artists")
                     .and_then(|v| v.get("items"))
                     .and_then(|v| v.as_array())
-                    .cloned()
+                    .map(|items| items.iter().map(artist_from_value).collect())
                     .unwrap_or_else(Vec::new);
-
-                let mut artists = Vec::new();
-
-                for value in values {
-                    let parsed: Result<qbz_models::Artist, _> =
-                        serde_json::from_value(value.clone());
-
-                    let mut artist = match parsed {
-                        Ok(parsed_artist) => to_fp_artist(&parsed_artist),
-                        Err(_) => basic_artist_from_value(&value),
-                    };
-
-                    if artist.id > 0
-                        && (artist.name.is_empty()
-                            || artist.image_url.is_empty())
-                    {
-                        if let Ok(detail) =
-                            self.client.get_artist(artist.id, false).await
-                        {
-                            let detailed = to_fp_artist(&detail);
-
-                            if artist.name.is_empty() {
-                                artist.name = detailed.name;
-                            }
-
-                            if artist.image_url.is_empty() {
-                                artist.image_url = detailed.image_url;
-                            }
-
-                            if artist.bio.is_empty() {
-                                artist.bio = detailed.bio;
-                            }
-
-                            if artist.bio_full.is_empty() {
-                                artist.bio_full = detailed.bio_full;
-                            }
-                        }
-                    }
-
-                    if artist.id > 0 {
-                        artists.push(artist);
-                    }
-                }
 
                 Ok(FavouritesPayload {
                     tracks: Vec::new(),
@@ -322,169 +277,8 @@ impl Core {
                     artists,
                 })
             }
+
             _ => Err(format!("unknown favourites mode: {mode}")),
-        }
-    }
-
-    pub async fn create_playlist(
-        &self,
-        name: &str,
-        initial_track_id: Option<u64>,
-    ) -> Result<FpPlaylist, String> {
-        let name = name.trim();
-
-        if name.is_empty() {
-            return Err("playlist name cannot be empty".into());
-        }
-
-        let playlist = self
-            .client
-            .create_playlist(name, None, false)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if let Some(track_id) = initial_track_id {
-            self.client
-                .add_tracks_to_playlist(playlist.id, &[track_id])
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-
-        let value = serde_json::to_value(&playlist)
-            .map_err(|e| e.to_string())?;
-
-        Ok(playlist_from_value(&value))
-    }
-
-    pub async fn add_track_to_playlist(
-        &self,
-        playlist_id: u64,
-        track_id: u64,
-    ) -> Result<(), String> {
-        self.client
-            .add_tracks_to_playlist(playlist_id, &[track_id])
-            .await
-            .map_err(|e| e.to_string())
-    }
-
-    pub async fn item_favourite_state(
-        &self,
-        item_type: &str,
-        item_id: &str,
-    ) -> Result<bool, String> {
-        let branch = match item_type {
-            "track" => "tracks",
-            "album" => "albums",
-            "artist" => "artists",
-            _ => return Err(format!(
-                "unsupported favourite type: {item_type}"
-            )),
-        };
-
-        let raw = self
-            .client
-            .get_favorites(branch, 500, 0)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let items = raw
-            .get(branch)
-            .and_then(|value| value.get("items"))
-            .and_then(|value| value.as_array());
-
-        Ok(items
-            .map(|items| {
-                items.iter().any(|item| {
-                    item.get("id")
-                        .map(|id| {
-                            if let Some(value) = id.as_str() {
-                                value == item_id
-                            } else if let Some(value) = id.as_u64() {
-                                value.to_string() == item_id
-                            } else {
-                                false
-                            }
-                        })
-                        .unwrap_or(false)
-                })
-            })
-            .unwrap_or(false))
-    }
-
-    pub async fn set_item_favourite(
-        &self,
-        item_type: &str,
-        item_id: &str,
-        favourite: bool,
-    ) -> Result<(), String> {
-        match item_type {
-            "track" | "album" | "artist" => {}
-            _ => return Err(format!(
-                "unsupported favourite type: {item_type}"
-            )),
-        }
-
-        if favourite {
-            self.client
-                .add_favorite(item_type, item_id)
-                .await
-                .map_err(|e| e.to_string())
-        } else {
-            self.client
-                .remove_favorite(item_type, item_id)
-                .await
-                .map_err(|e| e.to_string())
-        }
-    }
-
-    pub async fn track_favourite_state(
-        &self,
-        track_id: u64,
-    ) -> Result<bool, String> {
-        let raw = self
-            .client
-            .get_favorites("tracks", 500, 0)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let items = raw
-            .get("tracks")
-            .and_then(|value| value.get("items"))
-            .and_then(|value| value.as_array());
-
-        Ok(items
-            .map(|tracks| {
-                tracks.iter().any(|track| {
-                    track.get("id")
-                        .and_then(|id| {
-                            id.as_u64().or_else(|| {
-                                id.as_str()
-                                    .and_then(|value| value.parse::<u64>().ok())
-                            })
-                        })
-                        == Some(track_id)
-                })
-            })
-            .unwrap_or(false))
-    }
-
-    pub async fn set_track_favourite(
-        &self,
-        track_id: u64,
-        favourite: bool,
-    ) -> Result<(), String> {
-        let track_id = track_id.to_string();
-
-        if favourite {
-            self.client
-                .add_favorite("track", &track_id)
-                .await
-                .map_err(|e| e.to_string())
-        } else {
-            self.client
-                .remove_favorite("track", &track_id)
-                .await
-                .map_err(|e| e.to_string())
         }
     }
 }
@@ -565,16 +359,6 @@ fn to_fp_artist(a: &qbz_models::Artist) -> FpArtist {
             .biography
             .as_ref()
             .and_then(|b| b.summary.clone())
-            .unwrap_or_default(),
-        bio_full: a
-            .biography
-            .as_ref()
-            .and_then(|b| b.content.clone())
-            .or_else(|| {
-                a.biography
-                    .as_ref()
-                    .and_then(|b| b.summary.clone())
-            })
             .unwrap_or_default(),
     }
 }
@@ -675,73 +459,17 @@ fn album_from_value(v: &Value) -> FpAlbum {
     }
 }
 
-fn value_as_string(v: &Value, key: &str) -> String {
-    v.get(key)
-        .and_then(|value| {
-            if let Some(text) = value.as_str() {
-                Some(text.to_string())
-            } else {
-                value.as_u64().map(|number| number.to_string())
-            }
-        })
-        .unwrap_or_default()
-}
-
-fn artist_id_from_value(v: &Value) -> u64 {
-    let source = v.get("artist").unwrap_or(v);
-
-    source
-        .get("id")
-        .and_then(|value| {
-            if let Some(number) = value.as_u64() {
-                Some(number)
-            } else {
-                value
-                    .as_str()
-                    .and_then(|text| text.parse().ok())
-            }
-        })
-        .unwrap_or_default()
-}
-
-fn artist_image_from_value(v: &Value) -> String {
-    let source = v.get("artist").unwrap_or(v);
-
-    source
-        .get("image")
-        .and_then(|image| {
-            image
-                .as_str()
-                .or_else(|| image.get("mega").and_then(|x| x.as_str()))
-                .or_else(|| image.get("extralarge").and_then(|x| x.as_str()))
-                .or_else(|| image.get("large").and_then(|x| x.as_str()))
-                .or_else(|| image.get("medium").and_then(|x| x.as_str()))
-                .or_else(|| image.get("small").and_then(|x| x.as_str()))
-                .or_else(|| image.get("thumbnail").and_then(|x| x.as_str()))
-        })
-        .or_else(|| {
-            source
-                .get("picture")
-                .and_then(|value| value.as_str())
-        })
-        .or_else(|| {
-            source
-                .get("image_url")
-                .and_then(|value| value.as_str())
-        })
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn basic_artist_from_value(v: &Value) -> FpArtist {
-    let source = v.get("artist").unwrap_or(v);
-
+fn artist_from_value(v: &Value) -> FpArtist {
     FpArtist {
-        id: artist_id_from_value(v),
-        name: value_as_string(source, "name"),
-        image_url: artist_image_from_value(v),
-        bio: String::new(),
-        bio_full: String::new(),
+        id: u(v, "id"),
+        name: s(v, "name"),
+        image_url: image_url(v),
+        bio: v
+            .get("biography")
+            .and_then(|b| b.get("summary"))
+            .and_then(|x| x.as_str())
+            .unwrap_or_default()
+            .to_string(),
     }
 }
 

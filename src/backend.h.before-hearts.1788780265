@@ -24,15 +24,6 @@ extern "C" {
         unsigned long long playlist_id,
         unsigned long long track_id
     );
-    char *fp_item_favourite_state(
-        const char *item_type,
-        const char *item_id
-    );
-    char *fp_set_item_favourite(
-        const char *item_type,
-        const char *item_id,
-        bool favourite
-    );
     char *fp_track_favourite_state(
         unsigned long long track_id
     );
@@ -150,42 +141,6 @@ public slots:
         emit addTrackToPlaylistDone(out);
     }
 
-    void doItemFavouriteState(
-        const QString &itemType,
-        const QString &itemId
-    ) {
-        QByteArray type = itemType.toUtf8();
-        QByteArray id = itemId.toUtf8();
-
-        char *raw = fp_item_favourite_state(
-            type.constData(),
-            id.constData()
-        );
-
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit itemFavouriteStateDone(out);
-    }
-
-    void doSetItemFavourite(
-        const QString &itemType,
-        const QString &itemId,
-        bool favourite
-    ) {
-        QByteArray type = itemType.toUtf8();
-        QByteArray id = itemId.toUtf8();
-
-        char *raw = fp_set_item_favourite(
-            type.constData(),
-            id.constData(),
-            favourite
-        );
-
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit setItemFavouriteDone(out);
-    }
-
     void doTrackFavouriteState(qulonglong trackId) {
         char *raw = fp_track_favourite_state(trackId);
         QString out = QString::fromUtf8(raw);
@@ -219,8 +174,6 @@ signals:
     void favouritesDone(const QString &json);
     void createPlaylistDone(const QString &json);
     void addTrackToPlaylistDone(const QString &json);
-    void itemFavouriteStateDone(const QString &json);
-    void setItemFavouriteDone(const QString &json);
     void trackFavouriteStateDone(const QString &json);
     void setTrackFavouriteDone(const QString &json);
 };
@@ -248,8 +201,6 @@ public:
         connect(this, &Backend::requestFavourites,    worker, &SearchWorker::doFavourites);
         connect(this, &Backend::requestCreatePlaylist, worker, &SearchWorker::doCreatePlaylist);
         connect(this, &Backend::requestAddTrackToPlaylist, worker, &SearchWorker::doAddTrackToPlaylist);
-        connect(this, &Backend::requestItemFavouriteState, worker, &SearchWorker::doItemFavouriteState);
-        connect(this, &Backend::requestSetItemFavourite, worker, &SearchWorker::doSetItemFavourite);
         connect(this, &Backend::requestTrackFavouriteState, worker, &SearchWorker::doTrackFavouriteState);
         connect(this, &Backend::requestSetTrackFavourite, worker, &SearchWorker::doSetTrackFavourite);
 
@@ -265,8 +216,6 @@ public:
         connect(worker, &SearchWorker::favouritesDone,    this, &Backend::favouritesComplete);
         connect(worker, &SearchWorker::createPlaylistDone, this, &Backend::createPlaylistComplete);
         connect(worker, &SearchWorker::addTrackToPlaylistDone, this, &Backend::addTrackToPlaylistComplete);
-        connect(worker, &SearchWorker::itemFavouriteStateDone, this, &Backend::itemFavouriteStateComplete);
-        connect(worker, &SearchWorker::setItemFavouriteDone, this, &Backend::setItemFavouriteComplete);
         connect(worker, &SearchWorker::trackFavouriteStateDone, this, &Backend::trackFavouriteStateComplete);
         connect(worker, &SearchWorker::setTrackFavouriteDone, this, &Backend::setTrackFavouriteComplete);
 
@@ -303,25 +252,6 @@ public:
         emit requestAddTrackToPlaylist(playlistId, trackId);
     }
 
-    Q_INVOKABLE void itemFavouriteState(
-        const QString &itemType,
-        const QString &itemId
-    ) {
-        emit requestItemFavouriteState(itemType, itemId);
-    }
-
-    Q_INVOKABLE void setItemFavourite(
-        const QString &itemType,
-        const QString &itemId,
-        bool favourite
-    ) {
-        emit requestSetItemFavourite(
-            itemType,
-            itemId,
-            favourite
-        );
-    }
-
     Q_INVOKABLE void trackFavouriteState(
         qulonglong trackId
     ) {
@@ -354,15 +284,6 @@ signals:
         qulonglong playlistId,
         qulonglong trackId
     );
-    void requestItemFavouriteState(
-        const QString &itemType,
-        const QString &itemId
-    );
-    void requestSetItemFavourite(
-        const QString &itemType,
-        const QString &itemId,
-        bool favourite
-    );
     void requestTrackFavouriteState(qulonglong trackId);
     void requestSetTrackFavourite(
         qulonglong trackId,
@@ -381,8 +302,6 @@ signals:
     void favouritesComplete(const QString &json);
     void createPlaylistComplete(const QString &json);
     void addTrackToPlaylistComplete(const QString &json);
-    void itemFavouriteStateComplete(const QString &json);
-    void setItemFavouriteComplete(const QString &json);
     void trackFavouriteStateComplete(const QString &json);
     void setTrackFavouriteComplete(const QString &json);
 
