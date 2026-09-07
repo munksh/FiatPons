@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="bg" cx="55%" cy="24%" r="84%">
+      <stop offset="0%" stop-color="#f1dfca"/>
+      <stop offset="60%" stop-color="#c6bad0"/>
+      <stop offset="100%" stop-color="#8d789c"/>
+    </radialGradient>
+    <linearGradient id="robe" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#654f78"/>
+      <stop offset="100%" stop-color="#d6a779"/>
+    </linearGradient>
+  </defs>
+  <circle cx="128" cy="128" r="126" fill="url(#bg)"/>
+  <circle cx="128" cy="89" r="35" fill="#865848" opacity="0.75"/>
+  <path d="M51 230c12-56 45-88 77-88s65 32 77 88z" fill="url(#robe)" opacity="0.82"/>
+  <circle cx="128" cy="128" r="122" fill="none" stroke="#65506f" stroke-width="3" opacity="0.25"/>
+</svg>

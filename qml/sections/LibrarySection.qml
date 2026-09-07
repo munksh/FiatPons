@@ -1,73 +1,703 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+import se.munkstolen.fiatpons 1.0
 import ".."
 
-// Top-level LIBRARY tab. A calm landing that drills into Playlists and
-// Favourites. Pure navigation -- the data lives on the pages it opens.
 Item {
     id: section
     clip: true
 
-    function paint() { FiatPonsTheme.applyPalette(section) }
-    Component.onCompleted: paint()
-    Connections { target: FiatPonsTheme; onAmbientChanged: section.paint() }
+    property string libraryMode: "favourites"
+    property string favouriteMode: "tracks"
 
-    // One reusable entry row.
-    Component {
-        id: entryComp
-        Item {}
+    property bool busy: false
+    property string errorText: ""
+    property string statusText: ""
+
+    property real artistCellWidth: width / 2
+    property real artistPortraitSize: Math.min(
+        artistCellWidth - Theme.horizontalPageMargin * 1.5,
+        Theme.itemSizeHuge * 1.35
+    )
+
+    function paint() {
+        FiatPonsTheme.applyPalette(section)
     }
 
-    SilicaFlickable {
+    function artistPlaceholder(id) {
+        var n = parseInt(id)
+        if (isNaN(n))
+            n = 0
+
+        var slot = Math.abs(n % 6) + 1
+        var tone = FiatPonsTheme.ambient ? "dark" : "light"
+
+        return "../images/artist-placeholders/artist_placeholder_" + tone + "_" + slot + ".svg"
+    }
+
+    function loadFavourites() {
+        libraryMode = "favourites"
+        busy = true
+        errorText = ""
+        statusText = ""
+        favouritesModel.clear()
+        backend.favourites(favouriteMode)
+    }
+
+    function loadPlaylists() {
+        libraryMode = "playlists"
+        busy = true
+        errorText = ""
+        statusText = ""
+        playlistsModel.clear()
+        backend.userPlaylists()
+    }
+
+    function selectLibraryMode(mode) {
+        if (mode === libraryMode)
+            return
+
+        if (mode === "favourites")
+            loadFavourites()
+        else
+            loadPlaylists()
+    }
+
+    function selectFavouriteMode(mode) {
+        if (mode === favouriteMode && !busy)
+            return
+
+        favouriteMode = mode
+        loadFavourites()
+    }
+
+    function trackObjectFromModel(m) {
+        return {
+            id: m.id,
+            title: m.title === undefined ? "" : m.title,
+            artist: m.artist === undefined ? "" : m.artist,
+            album: m.album === undefined ? "" : m.album,
+            cover_url: m.cover_url === undefined ? "" : m.cover_url
+        }
+    }
+
+    function newPlaylist() {
+        statusText = "Playlist creation is the next backend step"
+    }
+
+    Component.onCompleted: {
+        paint()
+        loadFavourites()
+    }
+
+    Connections {
+        target: FiatPonsTheme
+        onAmbientChanged: section.paint()
+    }
+
+    ListModel {
+        id: favouritesModel
+    }
+
+    ListModel {
+        id: playlistsModel
+    }
+
+    Backend {
+        id: backend
+    }
+
+    Connections {
+        target: backend
+
+        onFavouritesComplete: {
+            section.busy = false
+            favouritesModel.clear()
+
+            var data
+
+            try {
+                data = JSON.parse(json)
+            } catch (error) {
+                section.errorText = "Could not read the favourites response"
+                return
+            }
+
+            if (data.error) {
+                section.errorText = data.error
+                return
+            }
+
+            var items = []
+
+            if (section.favouriteMode === "tracks")
+                items = data.tracks || []
+            else if (section.favouriteMode === "albums")
+                items = data.albums || []
+            else
+                items = data.artists || []
+
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i]
+                item.id = String(item.id)
+                favouritesModel.append(item)
+            }
+        }
+
+        onUserPlaylistsComplete: {
+            section.busy = false
+            playlistsModel.clear()
+
+            var data
+
+            try {
+                data = JSON.parse(json)
+            } catch (error) {
+                section.errorText = "Could not read the playlists response"
+                return
+            }
+
+            if (data.error) {
+                section.errorText = data.error
+                return
+            }
+
+            var items = data.playlists || []
+
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i]
+                item.id = String(item.id)
+                playlistsModel.append(item)
+            }
+        }
+    }
+
+    Rectangle {
         anchors.fill: parent
-        contentHeight: col.height + Theme.paddingLarge * 2
+        visible: !FiatPonsTheme.ambient
 
-        Column {
-            id: col
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: FiatPonsTheme.backgroundHigh }
+            GradientStop { position: 1.0; color: FiatPonsTheme.backgroundLow }
+        }
+    }
+
+    Column {
+        id: libraryHeader
+
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+
+        spacing: 0
+
+        Item {
             width: parent.width
-            anchors.top: parent.top
-            anchors.topMargin: Theme.paddingLarge
-            spacing: 0
+            height: Theme.itemSizeMedium
 
-            // ---- Playlists ----
-            BackgroundItem {
-                width: parent.width
-                height: Theme.itemSizeLarge
-                onClicked: pageStack.push(Qt.resolvedUrl("../pages/PlaylistsPage.qml"))
+            Label {
+                anchors.centerIn: parent
+                text: "Library"
+                color: FiatPonsTheme.primaryText
+                font.pixelSize: Theme.fontSizeLarge
+                font.family: FiatPonsTheme.serif
+            }
+        }
+
+        Item {
+            width: parent.width
+            height: Theme.itemSizeSmall
+
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: Theme.horizontalPageMargin
+                anchors.rightMargin: Theme.horizontalPageMargin
+
+                Repeater {
+                    model: [
+                        { key: "favourites", label: "FAVOURITES" },
+                        { key: "playlists", label: "PLAYLISTS" }
+                    ]
+
+                    delegate: Item {
+                        id: mainTab
+
+                        property bool selected: section.libraryMode === modelData.key
+
+                        width: parent.width / 2
+                        height: parent.height
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: mainTab.selected ? FiatPonsTheme.accent : FiatPonsTheme.secondaryText
+                            font.pixelSize: Theme.fontSizeExtraSmall
+                            font.family: FiatPonsTheme.serif
+                        }
+
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width * 0.55
+                            height: 1
+                            radius: 1
+                            color: FiatPonsTheme.accent
+                            opacity: mainTab.selected ? 1.0 : 0.0
+                        }
+
+                        MouseArea {
+                            id: mainMouse
+                            anchors.fill: parent
+                            onClicked: section.selectLibraryMode(modelData.key)
+                        }
+
+                        scale: mainMouse.pressed ? 0.96 : 1.0
+                        opacity: mainMouse.pressed ? 0.68 : 1.0
+
+                        Behavior on scale {
+                            NumberAnimation { duration: 90; easing.type: Easing.OutQuad }
+                        }
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 90 }
+                        }
+                    }
+                }
+            }
+        }
+
+        Item {
+            width: parent.width
+            height: section.libraryMode === "favourites" ? Theme.itemSizeExtraSmall : 0
+            visible: height > 0
+            clip: true
+
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: Theme.horizontalPageMargin
+                anchors.rightMargin: Theme.horizontalPageMargin
+
+                Repeater {
+                    model: [
+                        { key: "tracks", label: "Tracks" },
+                        { key: "albums", label: "Albums" },
+                        { key: "artists", label: "Artists" }
+                    ]
+
+                    delegate: Item {
+                        id: favTab
+
+                        property bool selected: section.favouriteMode === modelData.key
+
+                        width: parent.width / 3
+                        height: parent.height
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: favTab.selected ? FiatPonsTheme.accent : FiatPonsTheme.secondaryText
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.family: FiatPonsTheme.serif
+                        }
+
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width * 0.52
+                            height: 1
+                            radius: 1
+                            color: FiatPonsTheme.accent
+                            opacity: favTab.selected ? 1.0 : 0.0
+                        }
+
+                        MouseArea {
+                            id: favMouse
+                            anchors.fill: parent
+                            onClicked: section.selectFavouriteMode(modelData.key)
+                        }
+
+                        scale: favMouse.pressed ? 0.96 : 1.0
+                        opacity: favMouse.pressed ? 0.68 : 1.0
+
+                        Behavior on scale {
+                            NumberAnimation { duration: 90; easing.type: Easing.OutQuad }
+                        }
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 90 }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: FiatPonsTheme.innerBorder
+        }
+    }
+
+    Item {
+        anchors.top: libraryHeader.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+
+        SilicaListView {
+            id: favouritesList
+
+            anchors.fill: parent
+            clip: true
+            visible: section.libraryMode === "favourites" && section.favouriteMode !== "artists"
+            model: favouritesModel
+
+            PullDownMenu {
+                backgroundColor: FiatPonsTheme.surface
+                highlightColor: FiatPonsTheme.accent
+
+                MenuItem {
+                    text: "Refresh favourites"
+                    color: FiatPonsTheme.primaryText
+                    onClicked: section.loadFavourites()
+                }
+            }
+
+            delegate: ListItem {
+                id: favRow
+
+                width: favouritesList.width
+                contentHeight: Theme.itemSizeMedium
+
+                function trackObj() {
+                    return {
+                        id: model.id,
+                        title: model.title === undefined ? "" : model.title,
+                        artist: model.artist === undefined ? "" : model.artist,
+                        album: model.album === undefined ? "" : model.album,
+                        cover_url: model.cover_url === undefined ? "" : model.cover_url
+                    }
+                }
+
+                onClicked: {
+                    if (section.favouriteMode === "tracks") {
+                        app.queue.playNow(trackObj())
+                    } else {
+                        pageStack.push(Qt.resolvedUrl("../pages/AlbumPage.qml"), {
+                            albumId: model.id,
+                            initialCover: model.cover_url === undefined ? "" : model.cover_url
+                        })
+                    }
+                }
+
+                menu: section.favouriteMode === "tracks" ? trackMenu : null
+
+                Component {
+                    id: trackMenu
+
+                    ContextMenu {
+                        MenuItem {
+                            text: "Play now"
+                            onClicked: app.queue.playNow(favRow.trackObj())
+                        }
+
+                        MenuItem {
+                            text: "Add to queue"
+                            onClicked: app.queue.enqueue(favRow.trackObj())
+                        }
+
+                        MenuItem {
+                            text: "Play next"
+                            onClicked: app.queue.playNext(favRow.trackObj())
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: FiatPonsTheme.innerBorder
+                }
+
                 Row {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.leftMargin: Theme.horizontalPageMargin
                     anchors.rightMargin: Theme.horizontalPageMargin
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.paddingLarge
+                    spacing: Theme.paddingMedium
+
                     Rectangle {
-                        width: Theme.itemSizeMedium
+                        id: coverTile
+
+                        width: Theme.itemSizeMedium - Theme.paddingMedium
                         height: width
                         anchors.verticalCenter: parent.verticalCenter
-                        radius: FiatPonsTheme.cardRadius
+
+                        radius: Theme.paddingSmall / 2
                         color: FiatPonsTheme.recessFill
                         border.color: FiatPonsTheme.recessBorder
                         border.width: 1
+                        clip: true
+
+                        Image {
+                            anchors.fill: parent
+                            source: model.cover_url === undefined ? "" : model.cover_url
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                        }
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: section.favouriteMode === "albums" ? "\u266B" : "\u266A"
+                            color: FiatPonsTheme.secondaryText
+                            font.pixelSize: Theme.fontSizeLarge
+                            font.family: FiatPonsTheme.serif
+                            visible: model.cover_url === undefined || model.cover_url.length === 0
+                        }
+                    }
+
+                    Column {
+                        width: parent.width - coverTile.width - Theme.paddingMedium
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.paddingSmall / 2
+
+                        Label {
+                            width: parent.width
+                            text: model.title === undefined ? "" : model.title
+                            color: favRow.highlighted ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                            font.pixelSize: Theme.fontSizeMedium
+                            font.family: section.favouriteMode === "albums" ? FiatPonsTheme.serif : Theme.fontFamily
+                            truncationMode: TruncationMode.Fade
+                        }
+
+                        Label {
+                            width: parent.width
+                            text: {
+                                var artist = model.artist === undefined ? "" : model.artist
+
+                                if (section.favouriteMode === "albums") {
+                                    var year = model.year === undefined ? "" : model.year
+                                    return year.length > 0 ? artist + " \u00B7 " + year : artist
+                                }
+
+                                var album = model.album === undefined ? "" : model.album
+                                return album.length > 0 ? artist + " \u2014 " + album : artist
+                            }
+                            color: FiatPonsTheme.secondaryText
+                            font.pixelSize: Theme.fontSizeExtraSmall
+                            truncationMode: TruncationMode.Fade
+                        }
+                    }
+                }
+            }
+
+            VerticalScrollDecorator {}
+        }
+
+        GridView {
+            id: artistGrid
+
+            anchors.fill: parent
+            clip: true
+            visible: section.libraryMode === "favourites" && section.favouriteMode === "artists"
+            model: favouritesModel
+
+            cellWidth: width / 2
+            cellHeight: section.artistPortraitSize + Theme.paddingLarge + Theme.fontSizeSmall * 2
+            topMargin: Theme.paddingLarge
+            bottomMargin: Theme.paddingLarge
+
+            delegate: Item {
+                id: artistCell
+
+                width: artistGrid.cellWidth
+                height: artistGrid.cellHeight
+
+                Item {
+                    id: touchTarget
+
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top
+
+                    width: section.artistPortraitSize
+                    height: section.artistPortraitSize + artistName.height + Theme.paddingSmall
+
+                    Rectangle {
+                        id: portrait
+
+                        anchors.top: parent.top
+                        anchors.horizontalCenter: parent.horizontalCenter
+
+                        width: section.artistPortraitSize
+                        height: width
+                        radius: width / 2
+                        color: FiatPonsTheme.recessFill
+                        border.color: artistMouse.pressed ? FiatPonsTheme.accent : FiatPonsTheme.recessBorder
+                        border.width: artistMouse.pressed ? 2 : 1
+                        clip: true
+
+                        Image {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            source: {
+                                var actual = model.image_url === undefined ? "" : model.image_url
+                                return actual.length > 0 ? actual : section.artistPlaceholder(model.id)
+                            }
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                        }
+                    }
+
+                    Label {
+                        id: artistName
+
+                        anchors.top: portrait.bottom
+                        anchors.topMargin: Theme.paddingSmall
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+
+                        text: model.name === undefined ? "" : model.name
+                        color: artistMouse.pressed ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.family: FiatPonsTheme.serif
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        truncationMode: TruncationMode.Fade
+                    }
+
+                    MouseArea {
+                        id: artistMouse
+                        anchors.fill: parent
+                        onClicked: pageStack.push(Qt.resolvedUrl("../pages/ArtistPage.qml"), {
+                            artistIdStr: String(model.id)
+                        })
+                    }
+
+                    scale: artistMouse.pressed ? 0.94 : 1.0
+                    opacity: artistMouse.pressed ? 0.76 : 1.0
+
+                    Behavior on scale {
+                        NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+                    }
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: 100 }
+                    }
+                }
+            }
+        }
+
+        SilicaListView {
+            id: playlistsList
+
+            anchors.fill: parent
+            clip: true
+            visible: section.libraryMode === "playlists"
+            model: playlistsModel
+
+            PullDownMenu {
+                backgroundColor: FiatPonsTheme.surface
+                highlightColor: FiatPonsTheme.accent
+
+                MenuItem {
+                    text: "New playlist"
+                    color: FiatPonsTheme.primaryText
+                    onClicked: section.newPlaylist()
+                }
+
+                MenuItem {
+                    text: "Refresh playlists"
+                    color: FiatPonsTheme.primaryText
+                    onClicked: section.loadPlaylists()
+                }
+            }
+
+            delegate: ListItem {
+                id: playlistRow
+
+                width: playlistsList.width
+                contentHeight: Theme.itemSizeLarge
+
+                onClicked: pageStack.push(Qt.resolvedUrl("../pages/PlaylistPage.qml"), {
+                    playlistIdStr: String(model.id),
+                    initialName: model.name === undefined ? "" : model.name,
+                    initialCover: model.image_url === undefined ? "" : model.image_url
+                })
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: FiatPonsTheme.innerBorder
+                }
+
+                Row {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: Theme.horizontalPageMargin
+                    anchors.rightMargin: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.paddingMedium
+
+                    Rectangle {
+                        id: playlistCover
+
+                        width: Theme.itemSizeMedium
+                        height: width
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        radius: FiatPonsTheme.cardRadius
+                        color: FiatPonsTheme.recessFill
+                        border.color: playlistRow.highlighted ? FiatPonsTheme.accent : FiatPonsTheme.recessBorder
+                        border.width: playlistRow.highlighted ? 2 : 1
+                        clip: true
+
+                        Image {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            source: model.image_url === undefined ? "" : model.image_url
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                        }
+
                         Label {
                             anchors.centerIn: parent
                             text: "\u266B"
-                            color: FiatPonsTheme.accent
-                            font.pixelSize: Theme.fontSizeExtraLarge
-                            font.family: FiatPonsTheme.serif
-                        }
-                    }
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.paddingSmall / 2
-                        Label {
-                            text: "Playlists"
-                            color: FiatPonsTheme.primaryText
+                            color: FiatPonsTheme.secondaryText
                             font.pixelSize: Theme.fontSizeLarge
                             font.family: FiatPonsTheme.serif
+                            visible: model.image_url === undefined || model.image_url.length === 0
                         }
+                    }
+
+                    Column {
+                        width: parent.width - playlistCover.width - Theme.paddingMedium
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.paddingSmall / 2
+
                         Label {
-                            text: "Your saved playlists"
+                            width: parent.width
+                            text: model.name === undefined ? "" : model.name
+                            color: playlistRow.highlighted ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                            font.pixelSize: Theme.fontSizeMedium
+                            font.family: FiatPonsTheme.serif
+                            truncationMode: TruncationMode.Fade
+                        }
+
+                        Label {
+                            width: parent.width
+                            text: {
+                                var count = model.track_count === undefined ? 0 : model.track_count
+                                return count === 1 ? "1 track" : count + " tracks"
+                            }
                             color: FiatPonsTheme.secondaryText
                             font.pixelSize: Theme.fontSizeExtraSmall
                         }
@@ -75,56 +705,73 @@ Item {
                 }
             }
 
-            Rectangle { width: parent.width; height: 1; color: FiatPonsTheme.innerBorder }
-
-            // ---- Favourites ----
-            BackgroundItem {
-                width: parent.width
-                height: Theme.itemSizeLarge
-                onClicked: pageStack.push(Qt.resolvedUrl("../pages/FavouritesPage.qml"))
-                Row {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: Theme.horizontalPageMargin
-                    anchors.rightMargin: Theme.horizontalPageMargin
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.paddingLarge
-                    Rectangle {
-                        width: Theme.itemSizeMedium
-                        height: width
-                        anchors.verticalCenter: parent.verticalCenter
-                        radius: FiatPonsTheme.cardRadius
-                        color: FiatPonsTheme.recessFill
-                        border.color: FiatPonsTheme.recessBorder
-                        border.width: 1
-                        Label {
-                            anchors.centerIn: parent
-                            text: "\u2665"
-                            color: FiatPonsTheme.accent
-                            font.pixelSize: Theme.fontSizeExtraLarge
-                        }
-                    }
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.paddingSmall / 2
-                        Label {
-                            text: "Favourites"
-                            color: FiatPonsTheme.primaryText
-                            font.pixelSize: Theme.fontSizeLarge
-                            font.family: FiatPonsTheme.serif
-                        }
-                        Label {
-                            text: "Tracks, albums and artists you love"
-                            color: FiatPonsTheme.secondaryText
-                            font.pixelSize: Theme.fontSizeExtraSmall
-                        }
-                    }
-                }
-            }
-
-            Rectangle { width: parent.width; height: 1; color: FiatPonsTheme.innerBorder }
+            VerticalScrollDecorator {}
         }
 
-        VerticalScrollDecorator {}
+        BusyIndicator {
+            anchors.centerIn: parent
+            size: BusyIndicatorSize.Large
+            running: section.busy
+            visible: running
+        }
+
+        Column {
+            anchors.centerIn: parent
+            width: parent.width - Theme.horizontalPageMargin * 4
+            spacing: Theme.paddingSmall
+
+            visible: !section.busy
+                     && (
+                         section.errorText.length > 0
+                         || (
+                             section.libraryMode === "playlists"
+                             ? playlistsModel.count === 0
+                             : favouritesModel.count === 0
+                         )
+                     )
+
+            Label {
+                width: parent.width
+                text: section.errorText.length > 0
+                      ? "Couldn't load"
+                      : section.libraryMode === "playlists"
+                        ? "No playlists yet"
+                        : "No favourites yet"
+                color: FiatPonsTheme.accent
+                font.pixelSize: Theme.fontSizeLarge
+                font.family: FiatPonsTheme.serif
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Label {
+                width: parent.width
+                text: section.errorText.length > 0
+                      ? section.errorText
+                      : section.libraryMode === "playlists"
+                        ? "Pull down to create or refresh playlists"
+                        : "Saved music will appear here"
+                color: FiatPonsTheme.secondaryText
+                font.pixelSize: Theme.fontSizeSmall
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+            }
+        }
+
+        Label {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: Theme.horizontalPageMargin
+            anchors.rightMargin: Theme.horizontalPageMargin
+            anchors.bottomMargin: Theme.paddingMedium
+
+            visible: section.statusText.length > 0
+            text: section.statusText
+
+            color: FiatPonsTheme.accent
+            font.pixelSize: Theme.fontSizeExtraSmall
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+        }
     }
 }

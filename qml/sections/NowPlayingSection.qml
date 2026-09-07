@@ -14,6 +14,14 @@ Item {
     readonly property string trackAlbum:  track ? track.album  : ""
     readonly property string coverUrl:    (track && track.cover_url) ? track.cover_url : ""
 
+    function addCurrentToPlaylist() {
+        app.playback.statusLine = "Add to playlist is not wired yet"
+    }
+
+    function addCurrentToNewPlaylist() {
+        app.playback.statusLine = "New playlist creation is not wired yet"
+    }
+
     function fmt(ms) {
         if (!ms || ms < 0) return "0:00"
         var s = Math.floor(ms / 1000), m = Math.floor(s / 60), sec = s % 60
@@ -197,6 +205,36 @@ Item {
                     icon.color: app.playback.repeatMode > 0 ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
                     onClicked: app.playback.repeatMode = (app.playback.repeatMode + 1) % 3
                 }
+                BackgroundItem {
+                    id: moreMenuButton
+                    width: Theme.iconSizeMedium
+                    height: Theme.iconSizeMedium
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    onClicked: moreMenu.open(moreMenuButton)
+
+                    Label {
+                        anchors.centerIn: parent
+                        text: "\u22EF"
+                        font.pixelSize: Theme.fontSizeLarge
+                        color: highlighted ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                    }
+
+                    ContextMenu {
+                        id: moreMenu
+
+                        MenuItem {
+                            text: "Add to playlist"
+                            onClicked: section.addCurrentToPlaylist()
+                        }
+
+                        MenuItem {
+                            text: "Add to new playlist"
+                            onClicked: section.addCurrentToNewPlaylist()
+                        }
+                    }
+                }
+
                 BackgroundItem {
                     width: Theme.iconSizeMedium
                     height: Theme.iconSizeMedium

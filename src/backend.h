@@ -1,9 +1,9 @@
 #ifndef FIATPONS_BACKEND_H
 #define FIATPONS_BACKEND_H
 
-#include <QObject></Q>
-#include <QThread></Q>
-#include <QString></Q>
+#include <QObject>
+#include <QThread>
+#include <QString>
 
 extern "C" {
     char *fp_search(const char *query);

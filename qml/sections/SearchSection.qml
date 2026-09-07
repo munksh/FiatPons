@@ -98,45 +98,84 @@ Item {
             }
 
             // ---- Pills, wrapped in a fixed-height Item for clean top/bottom padding ----
+            // ---- Search mode tabs: thin text row, no pill background ----
             Item {
                 width: parent.width
-                height: pillRow.height + Theme.paddingSmall * 2
+                height: Theme.itemSizeExtraSmall
 
                 Row {
-                    id: pillRow
-                    anchors.centerIn: parent
-                    spacing: Theme.paddingSmall
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.horizontalPageMargin
+                    anchors.rightMargin: Theme.horizontalPageMargin
 
                     Repeater {
                         model: [
-                            { key: "albums",  label: "Album" },
-                            { key: "tracks",  label: "Tracks" },
-                            { key: "artists", label: "Artist" }
+                            { key: "albums", label: "Albums" },
+                            { key: "tracks", label: "Tracks" },
+                            { key: "artists", label: "Artists" }
                         ]
-                        delegate: Rectangle {
-                            property bool active: section.mode === modelData.key
-                            width: pillLabel.width + Theme.paddingLarge
-                            height: Theme.itemSizeExtraSmall * 0.7
-                            radius: height / 2
-                            color: active ? FiatPonsTheme.pillFillActive : FiatPonsTheme.pillFill
-                            border.color: active ? FiatPonsTheme.pillBorderActive : FiatPonsTheme.pillBorder
-                            border.width: 1
+
+                        delegate: Item {
+                            id: searchModeTab
+
+                            property bool selected: section.mode === modelData.key
+
+                            width: parent.width / 3
+                            height: parent.height
+
                             Label {
-                                id: pillLabel
                                 anchors.centerIn: parent
+
                                 text: modelData.label
-                                font.pixelSize: Theme.fontSizeExtraSmall
-                                color: active ? FiatPonsTheme.accent : FiatPonsTheme.primaryText
+                                color: searchModeTab.selected
+                                       ? FiatPonsTheme.accent
+                                       : FiatPonsTheme.secondaryText
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.family: FiatPonsTheme.serif
                             }
+
+                            Rectangle {
+                                anchors.bottom: parent.bottom
+                                anchors.horizontalCenter: parent.horizontalCenter
+
+                                width: parent.width * 0.55
+                                height: 1
+                                radius: 1
+
+                                color: FiatPonsTheme.accent
+                                opacity: searchModeTab.selected ? 1.0 : 0.0
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 140 }
+                                }
+                            }
+
                             MouseArea {
+                                id: searchModeMouse
+
                                 anchors.fill: parent
                                 onClicked: section.selectMode(modelData.key)
+                            }
+
+                            scale: searchModeMouse.pressed ? 0.96 : 1.0
+                            opacity: searchModeMouse.pressed ? 0.68 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 90
+                                    easing.type: Easing.OutQuad
+                                }
+                            }
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 90 }
                             }
                         }
                     }
                 }
             }
-        }
+
+}
 
         // One delegate, three layouts by section.mode.
         delegate: ListItem {
