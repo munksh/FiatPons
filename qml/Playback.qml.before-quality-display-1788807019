@@ -69,14 +69,6 @@ Item {
         log("load pending=" + pending + " id=" + (t ? t.id : 0) + " idx=" + (queue ? queue.currentIndex : -1))
         if (t) {
             statusLine = "Resolving\u2026"
-
-            log(
-                "request quality="
-                + preferredQuality
-                + " id="
-                + t.id
-            )
-
             backend.streamUrlQuality(
                 t.id,
                 preferredQuality
@@ -116,32 +108,9 @@ Item {
         try { data = JSON.parse(json) } catch (e) { statusLine = "Bad response"; return }
         if (data.error) { log("onStream error: " + data.error); statusLine = "Error: " + data.error; return }
         statusLine = ""
-
-        var mime = data.mime
-                   ? data.mime.toLowerCase()
-                   : ""
-
-        if (preferredQuality === "mp3"
-                || mime.indexOf("mpeg") !== -1
-                || mime.indexOf("mp3") !== -1) {
-            quality = "MP3 320"
-        } else if (data.bit_depth && data.sample_rate) {
-            quality = data.bit_depth
-                      + "-bit \u00B7 "
-                      + data.sample_rate
-                      + " kHz"
-        } else if (mime.indexOf("flac") !== -1) {
-            quality = "FLAC"
-        } else {
-            quality = preferredQualityLabel()
-        }
-
-        log(
-            "resolved requested=" + preferredQuality
-            + " mime=" + mime
-            + " displayed=" + quality
-        )
-
+        if (data.bit_depth && data.sample_rate) quality = data.bit_depth + "-bit \u00B7 " + data.sample_rate + " kHz"
+        else if (data.mime) quality = (data.mime.indexOf("flac") !== -1) ? "FLAC" : "MP3"
+        else quality = ""
         nowTrack = inflightTrack
         shouldPlay = playWhenResolved
         log("source set id=" + (nowTrack ? nowTrack.id : 0))

@@ -15,8 +15,6 @@ Item {
 
     property string statusLine: ""
     property string quality: ""
-    property string preferredQuality: "lossless"
-    property bool playWhenResolved: true
     property bool shuffle: false
     property int repeatMode: 0
 
@@ -24,64 +22,17 @@ Item {
     readonly property int position: player.position
     readonly property int duration: player.duration
 
+    function log(m) { console.log("[PB] " + m) }
 
-    function log(m) {
-        console.log("[PB] " + m)
-    }
+    Connections { target: queue; onCurrentChanged: playback.load() }
 
-    function preferredQualityLabel() {
-        return preferredQuality === "mp3"
-               ? "MP3 320"
-               : "CD (FLAC 16/44.1)"
-    }
-
-    function setPreferredQuality(value) {
-        if (value !== "mp3")
-            value = "lossless"
-
-        if (preferredQuality === value)
-            return
-
-        var resume = player.playbackState
-                     === MediaPlayer.PlayingState
-
-        preferredQuality = value
-        backend.setStreamQualityPreference(value)
-
-        if (queue && queue.currentTrack())
-            playback.load(resume)
-    }
-
-    Connections {
-        target: queue
-        onCurrentChanged: playback.load(true)
-    }
-
-    function load(playAfterResolve) {
-        if (playAfterResolve === undefined)
-            playAfterResolve = true
-
+    function load() {
         var t = queue ? queue.currentTrack() : null
         inflightTrack = t
-        playWhenResolved = playAfterResolve
         shouldPlay = false
         pending += 1
         log("load pending=" + pending + " id=" + (t ? t.id : 0) + " idx=" + (queue ? queue.currentIndex : -1))
-        if (t) {
-            statusLine = "Resolving\u2026"
-
-            log(
-                "request quality="
-                + preferredQuality
-                + " id="
-                + t.id
-            )
-
-            backend.streamUrlQuality(
-                t.id,
-                preferredQuality
-            )
-        }
+        if (t) { statusLine = "Resolving\u2026"; backend.streamUrl(t.id) }
         else { player.stop(); player.source = ""; nowTrack = null; statusLine = "" }
     }
 
@@ -102,11 +53,6 @@ Item {
         }
     }
 
-    Component.onCompleted: {
-        preferredQuality =
-            backend.streamQualityPreference()
-    }
-
     Backend { id: backend; onStreamReady: playback.onStream(json) }
     function onStream(json) {
         pending -= 1
@@ -116,34 +62,11 @@ Item {
         try { data = JSON.parse(json) } catch (e) { statusLine = "Bad response"; return }
         if (data.error) { log("onStream error: " + data.error); statusLine = "Error: " + data.error; return }
         statusLine = ""
-
-        var mime = data.mime
-                   ? data.mime.toLowerCase()
-                   : ""
-
-        if (preferredQuality === "mp3"
-                || mime.indexOf("mpeg") !== -1
-                || mime.indexOf("mp3") !== -1) {
-            quality = "MP3 320"
-        } else if (data.bit_depth && data.sample_rate) {
-            quality = data.bit_depth
-                      + "-bit \u00B7 "
-                      + data.sample_rate
-                      + " kHz"
-        } else if (mime.indexOf("flac") !== -1) {
-            quality = "FLAC"
-        } else {
-            quality = preferredQualityLabel()
-        }
-
-        log(
-            "resolved requested=" + preferredQuality
-            + " mime=" + mime
-            + " displayed=" + quality
-        )
-
+        if (data.bit_depth && data.sample_rate) quality = data.bit_depth + "-bit \u00B7 " + data.sample_rate + " kHz"
+        else if (data.mime) quality = (data.mime.indexOf("flac") !== -1) ? "FLAC" : "MP3"
+        else quality = ""
         nowTrack = inflightTrack
-        shouldPlay = playWhenResolved
+        shouldPlay = true
         log("source set id=" + (nowTrack ? nowTrack.id : 0))
         player.source = data.url
     }

@@ -60,14 +60,6 @@ pub extern "C" fn fp_stream_url(track_id: u64) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn fp_stream_url_quality(
-    track_id: u64,
-    quality: *const c_char,
-) -> *mut c_char {
-    to_c(build_stream_quality(track_id, quality))
-}
-
-#[no_mangle]
 pub extern "C" fn fp_album(album_id: *const c_char) -> *mut c_char {
     to_c(build_album(album_id))
 }
@@ -266,34 +258,6 @@ fn build_stream(track_id: u64) -> String {
     match RT.block_on(slot.as_ref().unwrap().stream_url(track_id)) {
         Ok(s) => serde_json::to_string(&s).unwrap_or_else(|e| err_json(&e.to_string())),
         Err(e) => err_json(&e),
-    }
-}
-
-fn build_stream_quality(
-    track_id: u64,
-    quality: *const c_char,
-) -> String {
-    let quality = match read_cstr(quality) {
-        Ok(value) => value,
-        Err(error) => return err_json(&error),
-    };
-
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref()
-            .unwrap()
-            .stream_url_quality(track_id, &quality)
-    ) {
-        Ok(stream) => serde_json::to_string(&stream)
-            .unwrap_or_else(|error| {
-                err_json(&error.to_string())
-            }),
-        Err(error) => err_json(&error),
     }
 }
 

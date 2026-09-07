@@ -142,33 +142,17 @@ impl Core {
     }
 
     pub async fn stream_url(&self, track_id: u64) -> Result<FpStream, String> {
-        self.stream_url_quality(track_id, "lossless").await
-    }
-
-    pub async fn stream_url_quality(
-        &self,
-        track_id: u64,
-        quality_name: &str,
-    ) -> Result<FpStream, String> {
-        let quality = match quality_name {
-            "mp3" => Quality::Mp3,
-            "lossless" | "cd" => Quality::Lossless,
-            _ => return Err(format!(
-                "unsupported stream quality: {quality_name}"
-            )),
-        };
-
-        let stream = self
+        let s = self
             .client
-            .get_stream_url(track_id, quality)
+            .get_stream_url(track_id, Quality::Lossless)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|e| e.to_string())?;
 
         Ok(FpStream {
-            url: stream.url,
-            mime: stream.mime_type,
-            sample_rate: stream.sampling_rate,
-            bit_depth: stream.bit_depth,
+            url: s.url,
+            mime: s.mime_type,
+            sample_rate: s.sampling_rate,
+            bit_depth: s.bit_depth,
         })
     }
 

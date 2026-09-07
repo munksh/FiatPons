@@ -4,17 +4,12 @@
 #include <QObject>
 #include <QThread>
 #include <QString>
-#include <QSettings>
 
 extern "C" {
     char *fp_search(const char *query);
     char *fp_search_albums(const char *query);
     char *fp_search_artists(const char *query);
     char *fp_stream_url(unsigned long long track_id);
-    char *fp_stream_url_quality(
-        unsigned long long track_id,
-        const char *quality
-    );
     char *fp_album(const char *album_id);
     char *fp_artist(unsigned long long artist_id);
     char *fp_radio_artist(unsigned long long artist_id);
@@ -104,22 +99,6 @@ public slots:
 
     void doStreamUrl(qulonglong id) {
         char *raw = fp_stream_url(id);
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit streamDone(out);
-    }
-
-    void doStreamUrlQuality(
-        qulonglong id,
-        const QString &quality
-    ) {
-        QByteArray encoded = quality.toUtf8();
-
-        char *raw = fp_stream_url_quality(
-            id,
-            encoded.constData()
-        );
-
         QString out = QString::fromUtf8(raw);
         fp_free(raw);
         emit streamDone(out);
@@ -383,7 +362,6 @@ public:
         connect(this, &Backend::requestSearchAlbums,  worker, &SearchWorker::doSearchAlbums);
         connect(this, &Backend::requestSearchArtists, worker, &SearchWorker::doSearchArtists);
         connect(this, &Backend::requestStream,        worker, &SearchWorker::doStreamUrl);
-        connect(this, &Backend::requestStreamQuality, worker, &SearchWorker::doStreamUrlQuality);
         connect(this, &Backend::requestAlbum,         worker, &SearchWorker::doAlbum);
         connect(this, &Backend::requestArtist,        worker, &SearchWorker::doArtist);
         connect(this, &Backend::requestRadioArtist,   worker, &SearchWorker::doRadioArtist);
@@ -436,47 +414,10 @@ public:
         m_thread.wait();
     }
 
-    Q_INVOKABLE QString streamQualityPreference() const {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
-        QString value = settings.value(
-            "playback/streamQuality",
-            "lossless"
-        ).toString();
-
-        return value == "mp3" ? "mp3" : "lossless";
-    }
-
-    Q_INVOKABLE void setStreamQualityPreference(
-        const QString &quality
-    ) {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
-        settings.setValue(
-            "playback/streamQuality",
-            quality == "mp3" ? "mp3" : "lossless"
-        );
-
-        settings.sync();
-    }
-
     Q_INVOKABLE void search(const QString &query)        { emit requestSearch(query); }
     Q_INVOKABLE void searchAlbums(const QString &query)  { emit requestSearchAlbums(query); }
     Q_INVOKABLE void searchArtists(const QString &query) { emit requestSearchArtists(query); }
     Q_INVOKABLE void streamUrl(qulonglong id)            { emit requestStream(id); }
-    Q_INVOKABLE void streamUrlQuality(
-        qulonglong id,
-        const QString &quality
-    ) {
-        emit requestStreamQuality(id, quality);
-    }
-
     Q_INVOKABLE void album(const QString &albumId)       { emit requestAlbum(albumId); }
     Q_INVOKABLE void artist(qulonglong id)               { emit requestArtist(id); }
     Q_INVOKABLE void radioArtist(qulonglong id)          { emit requestRadioArtist(id); }
@@ -599,10 +540,6 @@ signals:
     void requestSearchAlbums(const QString &query);
     void requestSearchArtists(const QString &query);
     void requestStream(qulonglong id);
-    void requestStreamQuality(
-        qulonglong id,
-        const QString &quality
-    );
     void requestAlbum(const QString &albumId);
     void requestArtist(qulonglong id);
     void requestRadioArtist(qulonglong id);

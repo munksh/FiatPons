@@ -4,14 +4,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
-use facade::{
-    Core,
-    FpTrack,
-    FpAlbum,
-    FpArtist,
-    FpPlaylist,
-    FavouritesPayload,
-};
+use facade::{Core, FpTrack, FpAlbum, FpArtist, FpPlaylist, FavouritesPayload};
 
 static RT:   Lazy<Runtime>             = Lazy::new(|| Runtime::new().expect("tokio runtime"));
 static CORE: Lazy<Mutex<Option<Core>>> = Lazy::new(|| Mutex::new(None));
@@ -60,14 +53,6 @@ pub extern "C" fn fp_stream_url(track_id: u64) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn fp_stream_url_quality(
-    track_id: u64,
-    quality: *const c_char,
-) -> *mut c_char {
-    to_c(build_stream_quality(track_id, quality))
-}
-
-#[no_mangle]
 pub extern "C" fn fp_album(album_id: *const c_char) -> *mut c_char {
     to_c(build_album(album_id))
 }
@@ -98,31 +83,6 @@ pub extern "C" fn fp_favourites(mode: *const c_char) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn fp_discover_featured() -> *mut c_char {
-    to_c(build_discover_featured())
-}
-
-#[no_mangle]
-pub extern "C" fn fp_discover_albums(
-    endpoint: *const c_char,
-    genre_id: u64,
-    offset: u32,
-    limit: u32,
-) -> *mut c_char {
-    to_c(build_discover_albums(
-        endpoint,
-        genre_id,
-        offset,
-        limit,
-    ))
-}
-
-#[no_mangle]
-pub extern "C" fn fp_discover_genres() -> *mut c_char {
-    to_c(build_discover_genres())
-}
-
-#[no_mangle]
 pub extern "C" fn fp_create_playlist(
     name: *const c_char,
     initial_track_id: u64,
@@ -136,52 +96,6 @@ pub extern "C" fn fp_add_track_to_playlist(
     track_id: u64,
 ) -> *mut c_char {
     to_c(build_add_track_to_playlist(playlist_id, track_id))
-}
-
-#[no_mangle]
-pub extern "C" fn fp_create_playlist_visible(
-    name: *const c_char,
-    initial_track_id: u64,
-    is_public: bool,
-) -> *mut c_char {
-    to_c(build_create_playlist_visible(
-        name,
-        initial_track_id,
-        is_public,
-    ))
-}
-
-#[no_mangle]
-pub extern "C" fn fp_remove_playlist_track(
-    playlist_id: u64,
-    playlist_track_id: u64,
-) -> *mut c_char {
-    to_c(build_remove_playlist_track(
-        playlist_id,
-        playlist_track_id,
-    ))
-}
-
-#[no_mangle]
-pub extern "C" fn fp_set_playlist_public(
-    playlist_id: u64,
-    is_public: bool,
-) -> *mut c_char {
-    to_c(build_set_playlist_public(
-        playlist_id,
-        is_public,
-    ))
-}
-
-#[no_mangle]
-pub extern "C" fn fp_save_playlist_order(
-    playlist_id: u64,
-    ordered_track_ids: *const c_char,
-) -> *mut c_char {
-    to_c(build_save_playlist_order(
-        playlist_id,
-        ordered_track_ids,
-    ))
 }
 
 #[no_mangle]
@@ -269,34 +183,6 @@ fn build_stream(track_id: u64) -> String {
     }
 }
 
-fn build_stream_quality(
-    track_id: u64,
-    quality: *const c_char,
-) -> String {
-    let quality = match read_cstr(quality) {
-        Ok(value) => value,
-        Err(error) => return err_json(&error),
-    };
-
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref()
-            .unwrap()
-            .stream_url_quality(track_id, &quality)
-    ) {
-        Ok(stream) => serde_json::to_string(&stream)
-            .unwrap_or_else(|error| {
-                err_json(&error.to_string())
-            }),
-        Err(error) => err_json(&error),
-    }
-}
-
 fn build_album(album_id: *const c_char) -> String {
     let id = match read_cstr(album_id) { Ok(s) => s, Err(e) => return err_json(&e) };
     let mut slot = CORE.lock().unwrap();
@@ -371,73 +257,6 @@ fn build_favourites(mode: *const c_char) -> String {
 }
 
 
-fn build_discover_featured() -> String {
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref().unwrap().discover_featured()
-    ) {
-        Ok(sections) => serde_json::json!({
-            "sections": sections
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_discover_albums(
-    endpoint: *const c_char,
-    genre_id: u64,
-    offset: u32,
-    limit: u32,
-) -> String {
-    let endpoint = match read_cstr(endpoint) {
-        Ok(value) => value,
-        Err(error) => return err_json(&error),
-    };
-
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref().unwrap().discover_albums(
-            &endpoint,
-            genre_id,
-            offset,
-            limit,
-        )
-    ) {
-        Ok(page) => serde_json::to_string(&page)
-            .unwrap_or_else(|error| {
-                err_json(&error.to_string())
-            }),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_discover_genres() -> String {
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref().unwrap().discover_genres()
-    ) {
-        Ok(genres) => serde_json::json!({
-            "genres": genres
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
-
 fn build_create_playlist(
     name: *const c_char,
     initial_track_id: u64,
@@ -491,140 +310,6 @@ fn build_add_track_to_playlist(
             "ok": true,
             "playlist_id": playlist_id,
             "track_id": track_id
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_create_playlist_visible(
-    name: *const c_char,
-    initial_track_id: u64,
-    is_public: bool,
-) -> String {
-    let name = match read_cstr(name) {
-        Ok(value) => value,
-        Err(error) => return err_json(&error),
-    };
-
-    let initial_track = if initial_track_id == 0 {
-        None
-    } else {
-        Some(initial_track_id)
-    };
-
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref()
-            .unwrap()
-            .create_playlist_visible(
-                &name,
-                initial_track,
-                is_public,
-            )
-    ) {
-        Ok(playlist) => serde_json::json!({
-            "ok": true,
-            "playlist": playlist
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_remove_playlist_track(
-    playlist_id: u64,
-    playlist_track_id: u64,
-) -> String {
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref()
-            .unwrap()
-            .remove_playlist_track(
-                playlist_id,
-                playlist_track_id,
-            )
-    ) {
-        Ok(()) => serde_json::json!({
-            "ok": true,
-            "playlist_id": playlist_id,
-            "playlist_track_id": playlist_track_id
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_set_playlist_public(
-    playlist_id: u64,
-    is_public: bool,
-) -> String {
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref()
-            .unwrap()
-            .set_playlist_public(playlist_id, is_public)
-    ) {
-        Ok(playlist) => serde_json::json!({
-            "ok": true,
-            "playlist": playlist
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_save_playlist_order(
-    playlist_id: u64,
-    ordered_track_ids: *const c_char,
-) -> String {
-    let csv = match read_cstr(ordered_track_ids) {
-        Ok(value) => value,
-        Err(error) => return err_json(&error),
-    };
-
-    let mut ids = Vec::new();
-
-    for part in csv.split(',') {
-        let trimmed = part.trim();
-
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        match trimmed.parse() {
-            Ok(id) => ids.push(id),
-            Err(_) => return err_json(
-                "invalid track id in order"
-            ),
-        }
-    }
-
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref()
-            .unwrap()
-            .save_playlist_order(playlist_id, &ids)
-    ) {
-        Ok(()) => serde_json::json!({
-            "ok": true,
-            "playlist_id": playlist_id
         }).to_string(),
         Err(error) => err_json(&error),
     }

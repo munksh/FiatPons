@@ -50,34 +50,13 @@ Page {
 
             SectionHeader { text: "Playback" }
             ComboBox {
-                id: qualityBox
-
                 width: parent.width
-                label: "Streaming quality"
-                description: app.playback.preferredQuality === "mp3"
-                             ? "MP3 320 kbps"
-                             : "Lossless CD quality"
-                currentIndex:
-                    app.playback.preferredQuality === "mp3"
-                    ? 1
-                    : 0
-
+                label: "Default quality"
+                enabled: false
+                description: "Coming soon"
                 menu: ContextMenu {
-                    MenuItem {
-                        text: "CD (FLAC 16/44.1)"
-                        onClicked:
-                            app.playback.setPreferredQuality(
-                                "lossless"
-                            )
-                    }
-
-                    MenuItem {
-                        text: "MP3 320"
-                        onClicked:
-                            app.playback.setPreferredQuality(
-                                "mp3"
-                            )
-                    }
+                    MenuItem { text: "CD (FLAC 16/44)" }
+                    MenuItem { text: "MP3 320" }
                 }
             }
         }

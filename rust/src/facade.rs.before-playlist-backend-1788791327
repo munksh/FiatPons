@@ -11,7 +11,6 @@ pub struct Core {
 #[derive(Serialize)]
 pub struct FpTrack {
     pub id: u64,
-    pub playlist_track_id: u64,
     pub title: String,
     pub artist: String,
     pub album: String,
@@ -55,7 +54,6 @@ pub struct FpPlaylist {
     pub name: String,
     pub image_url: String,
     pub track_count: u32,
-    pub is_public: bool,
 }
 
 #[derive(Serialize)]
@@ -63,37 +61,6 @@ pub struct FavouritesPayload {
     pub tracks: Vec<FpTrack>,
     pub albums: Vec<FpAlbum>,
     pub artists: Vec<FpArtist>,
-}
-
-#[derive(Serialize)]
-pub struct FpDiscoverAlbum {
-    pub id: String,
-    pub title: String,
-    pub artist: String,
-    pub artist_id: u64,
-    pub cover_url: String,
-    pub year: String,
-}
-
-#[derive(Serialize)]
-pub struct FpDiscoverSection {
-    pub key: String,
-    pub title: String,
-    pub endpoint: String,
-    pub has_more: bool,
-    pub albums: Vec<FpDiscoverAlbum>,
-}
-
-#[derive(Serialize)]
-pub struct FpDiscoverPage {
-    pub albums: Vec<FpDiscoverAlbum>,
-    pub has_more: bool,
-}
-
-#[derive(Serialize)]
-pub struct FpGenre {
-    pub id: u64,
-    pub name: String,
 }
 
 impl Core {
@@ -142,33 +109,17 @@ impl Core {
     }
 
     pub async fn stream_url(&self, track_id: u64) -> Result<FpStream, String> {
-        self.stream_url_quality(track_id, "lossless").await
-    }
-
-    pub async fn stream_url_quality(
-        &self,
-        track_id: u64,
-        quality_name: &str,
-    ) -> Result<FpStream, String> {
-        let quality = match quality_name {
-            "mp3" => Quality::Mp3,
-            "lossless" | "cd" => Quality::Lossless,
-            _ => return Err(format!(
-                "unsupported stream quality: {quality_name}"
-            )),
-        };
-
-        let stream = self
+        let s = self
             .client
-            .get_stream_url(track_id, quality)
+            .get_stream_url(track_id, Quality::Lossless)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|e| e.to_string())?;
 
         Ok(FpStream {
-            url: stream.url,
-            mime: stream.mime_type,
-            sample_rate: stream.sampling_rate,
-            bit_depth: stream.bit_depth,
+            url: s.url,
+            mime: s.mime_type,
+            sample_rate: s.sampling_rate,
+            bit_depth: s.bit_depth,
         })
     }
 
@@ -375,140 +326,6 @@ impl Core {
         }
     }
 
-    pub async fn discover_featured(
-        &self,
-    ) -> Result<Vec<FpDiscoverSection>, String> {
-        let response = self
-            .client
-            .get_discover_index(None)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        let containers = response.containers;
-        let mut sections = Vec::new();
-
-        if let Some(container) = containers.album_of_the_week {
-            sections.push(discover_section(
-                "albumOfTheWeek",
-                "Albums of the Week",
-                "/discover/albumOfTheWeek",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.new_releases {
-            sections.push(discover_section(
-                "newReleases",
-                "New Releases",
-                "/discover/newReleases",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.qobuzissims {
-            sections.push(discover_section(
-                "qobuzissims",
-                "Qobuzissimes",
-                "/discover/qobuzissims",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.press_awards {
-            sections.push(discover_section(
-                "pressAward",
-                "Press Accolades",
-                "/discover/pressAward",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.most_streamed {
-            sections.push(discover_section(
-                "mostStreamed",
-                "Most Streamed",
-                "/discover/mostStreamed",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.ideal_discography {
-            sections.push(discover_section(
-                "idealDiscography",
-                "Ideal Discography",
-                "/discover/idealDiscography",
-                container,
-                2,
-            ));
-        }
-
-        sections.retain(|section| !section.albums.is_empty());
-        Ok(sections)
-    }
-
-    pub async fn discover_albums(
-        &self,
-        endpoint: &str,
-        genre_id: u64,
-        offset: u32,
-        limit: u32,
-    ) -> Result<FpDiscoverPage, String> {
-        let genres = if genre_id == 0 {
-            None
-        } else {
-            Some(vec![genre_id])
-        };
-
-        let response = self
-            .client
-            .get_discover_albums(
-                endpoint,
-                genres,
-                offset,
-                limit,
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-
-        Ok(FpDiscoverPage {
-            albums: response
-                .items
-                .into_iter()
-                .map(to_fp_discover_album)
-                .collect(),
-            has_more: response.has_more,
-        })
-    }
-
-    pub async fn discover_genres(
-        &self,
-    ) -> Result<Vec<FpGenre>, String> {
-        let mut genres: Vec<FpGenre> = self
-            .client
-            .get_genres(None)
-            .await
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .map(|genre| FpGenre {
-                id: genre.id,
-                name: genre.name,
-            })
-            .collect();
-
-        genres.sort_by(|left, right| {
-            left.name
-                .to_lowercase()
-                .cmp(&right.name.to_lowercase())
-        });
-
-        Ok(genres)
-    }
-
     pub async fn create_playlist(
         &self,
         name: &str,
@@ -548,229 +365,6 @@ impl Core {
             .add_tracks_to_playlist(playlist_id, &[track_id])
             .await
             .map_err(|e| e.to_string())
-    }
-
-    pub async fn create_playlist_visible(
-        &self,
-        name: &str,
-        initial_track_id: Option<u64>,
-        is_public: bool,
-    ) -> Result<FpPlaylist, String> {
-        let name = name.trim();
-
-        if name.is_empty() {
-            return Err("playlist name cannot be empty".into());
-        }
-
-        let playlist = self
-            .client
-            .create_playlist(name, None, is_public)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        if let Some(track_id) = initial_track_id {
-            self.client
-                .add_tracks_to_playlist(playlist.id, &[track_id])
-                .await
-                .map_err(|error| error.to_string())?;
-        }
-
-        let value = serde_json::to_value(&playlist)
-            .map_err(|error| error.to_string())?;
-
-        Ok(playlist_from_value(&value))
-    }
-
-    pub async fn remove_playlist_track(
-        &self,
-        playlist_id: u64,
-        playlist_track_id: u64,
-    ) -> Result<(), String> {
-        if playlist_track_id == 0 {
-            return Err("missing playlist track id".into());
-        }
-
-        self.client
-            .remove_tracks_from_playlist(
-                playlist_id,
-                &[playlist_track_id],
-            )
-            .await
-            .map_err(|error| error.to_string())
-    }
-
-    pub async fn set_playlist_public(
-        &self,
-        playlist_id: u64,
-        is_public: bool,
-    ) -> Result<FpPlaylist, String> {
-        let playlist = self
-            .client
-            .update_playlist(
-                playlist_id,
-                None,
-                None,
-                Some(is_public),
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-
-        let value = serde_json::to_value(&playlist)
-            .map_err(|error| error.to_string())?;
-
-        Ok(playlist_from_value(&value))
-    }
-
-    async fn restore_playlist_tracks(
-        &self,
-        playlist_id: u64,
-        original_track_ids: &[u64],
-    ) -> Result<(), String> {
-        let current = self
-            .client
-            .get_playlist(playlist_id)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        let current_playlist_track_ids: Vec<u64> = current
-            .tracks
-            .as_ref()
-            .map(|container| {
-                container
-                    .items
-                    .iter()
-                    .filter_map(|track| track.playlist_track_id)
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        if !current_playlist_track_ids.is_empty() {
-            self.client
-                .remove_tracks_from_playlist(
-                    playlist_id,
-                    &current_playlist_track_ids,
-                )
-                .await
-                .map_err(|error| error.to_string())?;
-        }
-
-        if !original_track_ids.is_empty() {
-            self.client
-                .add_tracks_to_playlist(
-                    playlist_id,
-                    original_track_ids,
-                )
-                .await
-                .map_err(|error| error.to_string())?;
-        }
-
-        Ok(())
-    }
-
-    pub async fn save_playlist_order(
-        &self,
-        playlist_id: u64,
-        ordered_track_ids: &[u64],
-    ) -> Result<(), String> {
-        let current = self
-            .client
-            .get_playlist(playlist_id)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        let current_tracks = current
-            .tracks
-            .as_ref()
-            .map(|container| container.items.as_slice())
-            .unwrap_or(&[]);
-
-        let original_track_ids: Vec<u64> = current_tracks
-            .iter()
-            .map(|track| track.id)
-            .collect();
-
-        let playlist_track_ids: Vec<u64> = current_tracks
-            .iter()
-            .filter_map(|track| track.playlist_track_id)
-            .collect();
-
-        if original_track_ids.len() != playlist_track_ids.len() {
-            return Err(
-                "one or more tracks lack playlist_track_id".into()
-            );
-        }
-
-        let mut expected = original_track_ids.clone();
-        let mut requested = ordered_track_ids.to_vec();
-
-        expected.sort_unstable();
-        requested.sort_unstable();
-
-        if expected != requested {
-            return Err(
-                "new order does not contain the same tracks".into()
-            );
-        }
-
-        self.client
-            .remove_tracks_from_playlist(
-                playlist_id,
-                &playlist_track_ids,
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-
-        if let Err(error) = self
-            .client
-            .add_tracks_to_playlist(
-                playlist_id,
-                ordered_track_ids,
-            )
-            .await
-        {
-            let restore = self
-                .restore_playlist_tracks(
-                    playlist_id,
-                    &original_track_ids,
-                )
-                .await;
-
-            return match restore {
-                Ok(()) => Err(format!(
-                    "could not save order; original restored: {error}"
-                )),
-                Err(restore_error) => Err(format!(
-                    "could not save order and restore failed:                      {error}; restore: {restore_error}"
-                )),
-            };
-        }
-
-        let verification = self
-            .client
-            .get_playlist_track_ids(playlist_id)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        if verification.track_ids != ordered_track_ids {
-            let restore = self
-                .restore_playlist_tracks(
-                    playlist_id,
-                    &original_track_ids,
-                )
-                .await;
-
-            return match restore {
-                Ok(()) => Err(
-                    "Qobuz returned a different order;                      original restored"
-                        .into()
-                ),
-                Err(error) => Err(format!(
-                    "order verification failed and restore failed:                      {error}"
-                )),
-            };
-        }
-
-        Ok(())
     }
 
     pub async fn item_favourite_state(
@@ -895,82 +489,6 @@ impl Core {
     }
 }
 
-fn discover_section(
-    key: &str,
-    title: &str,
-    endpoint: &str,
-    container: qbz_models::DiscoverContainer<
-        qbz_models::DiscoverAlbum
-    >,
-    preview_count: usize,
-) -> FpDiscoverSection {
-    let has_more =
-        container.data.has_more
-        || container.data.items.len() > preview_count;
-
-    let albums = container
-        .data
-        .items
-        .into_iter()
-        .take(preview_count)
-        .map(to_fp_discover_album)
-        .collect();
-
-    FpDiscoverSection {
-        key: key.to_string(),
-        title: title.to_string(),
-        endpoint: endpoint.to_string(),
-        has_more,
-        albums,
-    }
-}
-
-fn to_fp_discover_album(
-    album: qbz_models::DiscoverAlbum,
-) -> FpDiscoverAlbum {
-    let artist = album
-        .artists
-        .first()
-        .map(|artist| artist.name.clone())
-        .unwrap_or_default();
-
-    let artist_id = album
-        .artists
-        .first()
-        .map(|artist| artist.id)
-        .unwrap_or_default();
-
-    let cover_url = album
-        .image
-        .large
-        .or(album.image.thumbnail)
-        .or(album.image.small)
-        .unwrap_or_default();
-
-    let year = album
-        .dates
-        .as_ref()
-        .and_then(|dates| {
-            dates
-                .original
-                .as_ref()
-                .or(dates.download.as_ref())
-                .or(dates.stream.as_ref())
-        })
-        .and_then(|date| date.get(0..4))
-        .unwrap_or_default()
-        .to_string();
-
-    FpDiscoverAlbum {
-        id: album.id,
-        title: album.title,
-        artist,
-        artist_id,
-        cover_url,
-        year,
-    }
-}
-
 fn to_fp_track(t: &qbz_models::Track) -> FpTrack {
     let album = t.album.as_ref();
 
@@ -983,7 +501,6 @@ fn to_fp_track(t: &qbz_models::Track) -> FpTrack {
 
     FpTrack {
         id: t.id,
-        playlist_track_id: t.playlist_track_id.unwrap_or_default(),
         title: t.title.clone(),
         artist,
         album: album.map(|a| a.title.clone()).unwrap_or_default(),
@@ -1009,7 +526,6 @@ fn track_from_album(
 
     FpTrack {
         id: t.id,
-        playlist_track_id: t.playlist_track_id.unwrap_or_default(),
         title: t.title.clone(),
         artist: own_artist,
         album: album_title.to_string(),
@@ -1120,7 +636,6 @@ fn track_from_value(v: &Value) -> FpTrack {
 
     FpTrack {
         id: u(v, "id"),
-        playlist_track_id: u(v, "playlist_track_id"),
         title: s(v, "title"),
         artist,
         album: album_title,
@@ -1230,103 +745,11 @@ fn basic_artist_from_value(v: &Value) -> FpArtist {
     }
 }
 
-fn image_size_hint(url: &str) -> u32 {
-    let filename = url
-        .rsplit('/')
-        .next()
-        .unwrap_or(url);
-
-    let stem = filename
-        .split('.')
-        .next()
-        .unwrap_or(filename);
-
-    stem
-        .rsplit('_')
-        .next()
-        .and_then(|part| part.parse().ok())
-        .unwrap_or_default()
-}
-
-fn playlist_image_url(v: &Value) -> String {
-    let mut best = String::new();
-    let mut best_score = 0;
-
-    let mut consider = |url: &str| {
-        if url.is_empty() {
-            return;
-        }
-
-        let score = image_size_hint(url);
-
-        if best.is_empty() || score > best_score {
-            best = url.to_string();
-            best_score = score;
-        }
-    };
-
-    if let Some(images) = v.get("images") {
-        if let Some(rectangle) = images.get("rectangle") {
-            if let Some(url) = rectangle.as_str() {
-                consider(url);
-            }
-
-            if let Some(urls) = rectangle.as_array() {
-                for value in urls {
-                    if let Some(url) = value.as_str() {
-                        consider(url);
-                    }
-                }
-            }
-        }
-
-        if let Some(covers) = images.get("covers") {
-            if let Some(url) = covers.as_str() {
-                consider(url);
-            }
-
-            if let Some(urls) = covers.as_array() {
-                for value in urls {
-                    if let Some(url) = value.as_str() {
-                        consider(url);
-                    }
-                }
-            }
-        }
-
-        for key in [
-            "mega",
-            "extralarge",
-            "large",
-            "medium",
-            "small",
-            "thumbnail",
-        ] {
-            if let Some(url) = images
-                .get(key)
-                .and_then(|value| value.as_str())
-            {
-                consider(url);
-            }
-        }
-    }
-
-    if best.is_empty() {
-        image_url(v)
-    } else {
-        best
-    }
-}
-
 fn playlist_from_value(v: &Value) -> FpPlaylist {
     FpPlaylist {
         id: u(v, "id"),
         name: s(v, "name"),
-        image_url: playlist_image_url(v),
+        image_url: image_url(v),
         track_count: u32v(v, "tracks_count"),
-        is_public: v
-            .get("is_public")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false),
     }
 }

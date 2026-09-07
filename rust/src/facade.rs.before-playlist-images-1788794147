@@ -65,37 +65,6 @@ pub struct FavouritesPayload {
     pub artists: Vec<FpArtist>,
 }
 
-#[derive(Serialize)]
-pub struct FpDiscoverAlbum {
-    pub id: String,
-    pub title: String,
-    pub artist: String,
-    pub artist_id: u64,
-    pub cover_url: String,
-    pub year: String,
-}
-
-#[derive(Serialize)]
-pub struct FpDiscoverSection {
-    pub key: String,
-    pub title: String,
-    pub endpoint: String,
-    pub has_more: bool,
-    pub albums: Vec<FpDiscoverAlbum>,
-}
-
-#[derive(Serialize)]
-pub struct FpDiscoverPage {
-    pub albums: Vec<FpDiscoverAlbum>,
-    pub has_more: bool,
-}
-
-#[derive(Serialize)]
-pub struct FpGenre {
-    pub id: u64,
-    pub name: String,
-}
-
 impl Core {
     pub async fn new() -> Result<Self, String> {
         let client = QobuzClient::new().map_err(|e| e.to_string())?;
@@ -142,33 +111,17 @@ impl Core {
     }
 
     pub async fn stream_url(&self, track_id: u64) -> Result<FpStream, String> {
-        self.stream_url_quality(track_id, "lossless").await
-    }
-
-    pub async fn stream_url_quality(
-        &self,
-        track_id: u64,
-        quality_name: &str,
-    ) -> Result<FpStream, String> {
-        let quality = match quality_name {
-            "mp3" => Quality::Mp3,
-            "lossless" | "cd" => Quality::Lossless,
-            _ => return Err(format!(
-                "unsupported stream quality: {quality_name}"
-            )),
-        };
-
-        let stream = self
+        let s = self
             .client
-            .get_stream_url(track_id, quality)
+            .get_stream_url(track_id, Quality::Lossless)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|e| e.to_string())?;
 
         Ok(FpStream {
-            url: stream.url,
-            mime: stream.mime_type,
-            sample_rate: stream.sampling_rate,
-            bit_depth: stream.bit_depth,
+            url: s.url,
+            mime: s.mime_type,
+            sample_rate: s.sampling_rate,
+            bit_depth: s.bit_depth,
         })
     }
 
@@ -373,140 +326,6 @@ impl Core {
             }
             _ => Err(format!("unknown favourites mode: {mode}")),
         }
-    }
-
-    pub async fn discover_featured(
-        &self,
-    ) -> Result<Vec<FpDiscoverSection>, String> {
-        let response = self
-            .client
-            .get_discover_index(None)
-            .await
-            .map_err(|error| error.to_string())?;
-
-        let containers = response.containers;
-        let mut sections = Vec::new();
-
-        if let Some(container) = containers.album_of_the_week {
-            sections.push(discover_section(
-                "albumOfTheWeek",
-                "Albums of the Week",
-                "/discover/albumOfTheWeek",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.new_releases {
-            sections.push(discover_section(
-                "newReleases",
-                "New Releases",
-                "/discover/newReleases",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.qobuzissims {
-            sections.push(discover_section(
-                "qobuzissims",
-                "Qobuzissimes",
-                "/discover/qobuzissims",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.press_awards {
-            sections.push(discover_section(
-                "pressAward",
-                "Press Accolades",
-                "/discover/pressAward",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.most_streamed {
-            sections.push(discover_section(
-                "mostStreamed",
-                "Most Streamed",
-                "/discover/mostStreamed",
-                container,
-                2,
-            ));
-        }
-
-        if let Some(container) = containers.ideal_discography {
-            sections.push(discover_section(
-                "idealDiscography",
-                "Ideal Discography",
-                "/discover/idealDiscography",
-                container,
-                2,
-            ));
-        }
-
-        sections.retain(|section| !section.albums.is_empty());
-        Ok(sections)
-    }
-
-    pub async fn discover_albums(
-        &self,
-        endpoint: &str,
-        genre_id: u64,
-        offset: u32,
-        limit: u32,
-    ) -> Result<FpDiscoverPage, String> {
-        let genres = if genre_id == 0 {
-            None
-        } else {
-            Some(vec![genre_id])
-        };
-
-        let response = self
-            .client
-            .get_discover_albums(
-                endpoint,
-                genres,
-                offset,
-                limit,
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-
-        Ok(FpDiscoverPage {
-            albums: response
-                .items
-                .into_iter()
-                .map(to_fp_discover_album)
-                .collect(),
-            has_more: response.has_more,
-        })
-    }
-
-    pub async fn discover_genres(
-        &self,
-    ) -> Result<Vec<FpGenre>, String> {
-        let mut genres: Vec<FpGenre> = self
-            .client
-            .get_genres(None)
-            .await
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .map(|genre| FpGenre {
-                id: genre.id,
-                name: genre.name,
-            })
-            .collect();
-
-        genres.sort_by(|left, right| {
-            left.name
-                .to_lowercase()
-                .cmp(&right.name.to_lowercase())
-        });
-
-        Ok(genres)
     }
 
     pub async fn create_playlist(
@@ -895,82 +714,6 @@ impl Core {
     }
 }
 
-fn discover_section(
-    key: &str,
-    title: &str,
-    endpoint: &str,
-    container: qbz_models::DiscoverContainer<
-        qbz_models::DiscoverAlbum
-    >,
-    preview_count: usize,
-) -> FpDiscoverSection {
-    let has_more =
-        container.data.has_more
-        || container.data.items.len() > preview_count;
-
-    let albums = container
-        .data
-        .items
-        .into_iter()
-        .take(preview_count)
-        .map(to_fp_discover_album)
-        .collect();
-
-    FpDiscoverSection {
-        key: key.to_string(),
-        title: title.to_string(),
-        endpoint: endpoint.to_string(),
-        has_more,
-        albums,
-    }
-}
-
-fn to_fp_discover_album(
-    album: qbz_models::DiscoverAlbum,
-) -> FpDiscoverAlbum {
-    let artist = album
-        .artists
-        .first()
-        .map(|artist| artist.name.clone())
-        .unwrap_or_default();
-
-    let artist_id = album
-        .artists
-        .first()
-        .map(|artist| artist.id)
-        .unwrap_or_default();
-
-    let cover_url = album
-        .image
-        .large
-        .or(album.image.thumbnail)
-        .or(album.image.small)
-        .unwrap_or_default();
-
-    let year = album
-        .dates
-        .as_ref()
-        .and_then(|dates| {
-            dates
-                .original
-                .as_ref()
-                .or(dates.download.as_ref())
-                .or(dates.stream.as_ref())
-        })
-        .and_then(|date| date.get(0..4))
-        .unwrap_or_default()
-        .to_string();
-
-    FpDiscoverAlbum {
-        id: album.id,
-        title: album.title,
-        artist,
-        artist_id,
-        cover_url,
-        year,
-    }
-}
-
 fn to_fp_track(t: &qbz_models::Track) -> FpTrack {
     let album = t.album.as_ref();
 
@@ -1230,99 +973,11 @@ fn basic_artist_from_value(v: &Value) -> FpArtist {
     }
 }
 
-fn image_size_hint(url: &str) -> u32 {
-    let filename = url
-        .rsplit('/')
-        .next()
-        .unwrap_or(url);
-
-    let stem = filename
-        .split('.')
-        .next()
-        .unwrap_or(filename);
-
-    stem
-        .rsplit('_')
-        .next()
-        .and_then(|part| part.parse().ok())
-        .unwrap_or_default()
-}
-
-fn playlist_image_url(v: &Value) -> String {
-    let mut best = String::new();
-    let mut best_score = 0;
-
-    let mut consider = |url: &str| {
-        if url.is_empty() {
-            return;
-        }
-
-        let score = image_size_hint(url);
-
-        if best.is_empty() || score > best_score {
-            best = url.to_string();
-            best_score = score;
-        }
-    };
-
-    if let Some(images) = v.get("images") {
-        if let Some(rectangle) = images.get("rectangle") {
-            if let Some(url) = rectangle.as_str() {
-                consider(url);
-            }
-
-            if let Some(urls) = rectangle.as_array() {
-                for value in urls {
-                    if let Some(url) = value.as_str() {
-                        consider(url);
-                    }
-                }
-            }
-        }
-
-        if let Some(covers) = images.get("covers") {
-            if let Some(url) = covers.as_str() {
-                consider(url);
-            }
-
-            if let Some(urls) = covers.as_array() {
-                for value in urls {
-                    if let Some(url) = value.as_str() {
-                        consider(url);
-                    }
-                }
-            }
-        }
-
-        for key in [
-            "mega",
-            "extralarge",
-            "large",
-            "medium",
-            "small",
-            "thumbnail",
-        ] {
-            if let Some(url) = images
-                .get(key)
-                .and_then(|value| value.as_str())
-            {
-                consider(url);
-            }
-        }
-    }
-
-    if best.is_empty() {
-        image_url(v)
-    } else {
-        best
-    }
-}
-
 fn playlist_from_value(v: &Value) -> FpPlaylist {
     FpPlaylist {
         id: u(v, "id"),
         name: s(v, "name"),
-        image_url: playlist_image_url(v),
+        image_url: image_url(v),
         track_count: u32v(v, "tracks_count"),
         is_public: v
             .get("is_public")

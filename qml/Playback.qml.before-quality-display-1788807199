@@ -69,14 +69,6 @@ Item {
         log("load pending=" + pending + " id=" + (t ? t.id : 0) + " idx=" + (queue ? queue.currentIndex : -1))
         if (t) {
             statusLine = "Resolving\u2026"
-
-            log(
-                "request quality="
-                + preferredQuality
-                + " id="
-                + t.id
-            )
-
             backend.streamUrlQuality(
                 t.id,
                 preferredQuality

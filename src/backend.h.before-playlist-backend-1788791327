@@ -4,31 +4,18 @@
 #include <QObject>
 #include <QThread>
 #include <QString>
-#include <QSettings>
 
 extern "C" {
     char *fp_search(const char *query);
     char *fp_search_albums(const char *query);
     char *fp_search_artists(const char *query);
     char *fp_stream_url(unsigned long long track_id);
-    char *fp_stream_url_quality(
-        unsigned long long track_id,
-        const char *quality
-    );
     char *fp_album(const char *album_id);
     char *fp_artist(unsigned long long artist_id);
     char *fp_radio_artist(unsigned long long artist_id);
     char *fp_user_playlists();
     char *fp_playlist(unsigned long long playlist_id);
     char *fp_favourites(const char *mode);
-    char *fp_discover_featured();
-    char *fp_discover_albums(
-        const char *endpoint,
-        unsigned long long genre_id,
-        unsigned int offset,
-        unsigned int limit
-    );
-    char *fp_discover_genres();
     char *fp_create_playlist(
         const char *name,
         unsigned long long initial_track_id
@@ -36,23 +23,6 @@ extern "C" {
     char *fp_add_track_to_playlist(
         unsigned long long playlist_id,
         unsigned long long track_id
-    );
-    char *fp_create_playlist_visible(
-        const char *name,
-        unsigned long long initial_track_id,
-        bool is_public
-    );
-    char *fp_remove_playlist_track(
-        unsigned long long playlist_id,
-        unsigned long long playlist_track_id
-    );
-    char *fp_set_playlist_public(
-        unsigned long long playlist_id,
-        bool is_public
-    );
-    char *fp_save_playlist_order(
-        unsigned long long playlist_id,
-        const char *ordered_track_ids
     );
     char *fp_item_favourite_state(
         const char *item_type,
@@ -109,22 +79,6 @@ public slots:
         emit streamDone(out);
     }
 
-    void doStreamUrlQuality(
-        qulonglong id,
-        const QString &quality
-    ) {
-        QByteArray encoded = quality.toUtf8();
-
-        char *raw = fp_stream_url_quality(
-            id,
-            encoded.constData()
-        );
-
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit streamDone(out);
-    }
-
     void doAlbum(const QString &albumId) {
         QByteArray a = albumId.toUtf8();
         char *raw = fp_album(a.constData());
@@ -169,40 +123,6 @@ public slots:
         emit favouritesDone(out);
     }
 
-    void doDiscoverFeatured() {
-        char *raw = fp_discover_featured();
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit discoverFeaturedDone(out);
-    }
-
-    void doDiscoverAlbums(
-        const QString &endpoint,
-        qulonglong genreId,
-        uint offset,
-        uint limit
-    ) {
-        QByteArray encoded = endpoint.toUtf8();
-
-        char *raw = fp_discover_albums(
-            encoded.constData(),
-            genreId,
-            offset,
-            limit
-        );
-
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit discoverAlbumsDone(out);
-    }
-
-    void doDiscoverGenres() {
-        char *raw = fp_discover_genres();
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit discoverGenresDone(out);
-    }
-
     void doCreatePlaylist(
         const QString &name,
         qulonglong initialTrackId
@@ -228,62 +148,6 @@ public slots:
         QString out = QString::fromUtf8(raw);
         fp_free(raw);
         emit addTrackToPlaylistDone(out);
-    }
-
-    void doCreatePlaylistVisible(
-        const QString &name,
-        qulonglong initialTrackId,
-        bool isPublic
-    ) {
-        QByteArray encoded = name.toUtf8();
-        char *raw = fp_create_playlist_visible(
-            encoded.constData(),
-            initialTrackId,
-            isPublic
-        );
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit createPlaylistVisibleDone(out);
-    }
-
-    void doRemovePlaylistTrack(
-        qulonglong playlistId,
-        qulonglong playlistTrackId
-    ) {
-        char *raw = fp_remove_playlist_track(
-            playlistId,
-            playlistTrackId
-        );
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit removePlaylistTrackDone(out);
-    }
-
-    void doSetPlaylistPublic(
-        qulonglong playlistId,
-        bool isPublic
-    ) {
-        char *raw = fp_set_playlist_public(
-            playlistId,
-            isPublic
-        );
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit setPlaylistPublicDone(out);
-    }
-
-    void doSavePlaylistOrder(
-        qulonglong playlistId,
-        const QString &orderedTrackIds
-    ) {
-        QByteArray encoded = orderedTrackIds.toUtf8();
-        char *raw = fp_save_playlist_order(
-            playlistId,
-            encoded.constData()
-        );
-        QString out = QString::fromUtf8(raw);
-        fp_free(raw);
-        emit savePlaylistOrderDone(out);
     }
 
     void doItemFavouriteState(
@@ -353,15 +217,8 @@ signals:
     void userPlaylistsDone(const QString &json);
     void playlistDone(const QString &json);
     void favouritesDone(const QString &json);
-    void discoverFeaturedDone(const QString &json);
-    void discoverAlbumsDone(const QString &json);
-    void discoverGenresDone(const QString &json);
     void createPlaylistDone(const QString &json);
     void addTrackToPlaylistDone(const QString &json);
-    void createPlaylistVisibleDone(const QString &json);
-    void removePlaylistTrackDone(const QString &json);
-    void setPlaylistPublicDone(const QString &json);
-    void savePlaylistOrderDone(const QString &json);
     void itemFavouriteStateDone(const QString &json);
     void setItemFavouriteDone(const QString &json);
     void trackFavouriteStateDone(const QString &json);
@@ -383,22 +240,14 @@ public:
         connect(this, &Backend::requestSearchAlbums,  worker, &SearchWorker::doSearchAlbums);
         connect(this, &Backend::requestSearchArtists, worker, &SearchWorker::doSearchArtists);
         connect(this, &Backend::requestStream,        worker, &SearchWorker::doStreamUrl);
-        connect(this, &Backend::requestStreamQuality, worker, &SearchWorker::doStreamUrlQuality);
         connect(this, &Backend::requestAlbum,         worker, &SearchWorker::doAlbum);
         connect(this, &Backend::requestArtist,        worker, &SearchWorker::doArtist);
         connect(this, &Backend::requestRadioArtist,   worker, &SearchWorker::doRadioArtist);
         connect(this, &Backend::requestUserPlaylists, worker, &SearchWorker::doUserPlaylists);
         connect(this, &Backend::requestPlaylist,      worker, &SearchWorker::doPlaylist);
         connect(this, &Backend::requestFavourites,    worker, &SearchWorker::doFavourites);
-        connect(this, &Backend::requestDiscoverFeatured, worker, &SearchWorker::doDiscoverFeatured);
-        connect(this, &Backend::requestDiscoverAlbums, worker, &SearchWorker::doDiscoverAlbums);
-        connect(this, &Backend::requestDiscoverGenres, worker, &SearchWorker::doDiscoverGenres);
         connect(this, &Backend::requestCreatePlaylist, worker, &SearchWorker::doCreatePlaylist);
         connect(this, &Backend::requestAddTrackToPlaylist, worker, &SearchWorker::doAddTrackToPlaylist);
-        connect(this, &Backend::requestCreatePlaylistVisible, worker, &SearchWorker::doCreatePlaylistVisible);
-        connect(this, &Backend::requestRemovePlaylistTrack, worker, &SearchWorker::doRemovePlaylistTrack);
-        connect(this, &Backend::requestSetPlaylistPublic, worker, &SearchWorker::doSetPlaylistPublic);
-        connect(this, &Backend::requestSavePlaylistOrder, worker, &SearchWorker::doSavePlaylistOrder);
         connect(this, &Backend::requestItemFavouriteState, worker, &SearchWorker::doItemFavouriteState);
         connect(this, &Backend::requestSetItemFavourite, worker, &SearchWorker::doSetItemFavourite);
         connect(this, &Backend::requestTrackFavouriteState, worker, &SearchWorker::doTrackFavouriteState);
@@ -414,15 +263,8 @@ public:
         connect(worker, &SearchWorker::userPlaylistsDone, this, &Backend::userPlaylistsComplete);
         connect(worker, &SearchWorker::playlistDone,      this, &Backend::playlistComplete);
         connect(worker, &SearchWorker::favouritesDone,    this, &Backend::favouritesComplete);
-        connect(worker, &SearchWorker::discoverFeaturedDone, this, &Backend::discoverFeaturedComplete);
-        connect(worker, &SearchWorker::discoverAlbumsDone, this, &Backend::discoverAlbumsComplete);
-        connect(worker, &SearchWorker::discoverGenresDone, this, &Backend::discoverGenresComplete);
         connect(worker, &SearchWorker::createPlaylistDone, this, &Backend::createPlaylistComplete);
         connect(worker, &SearchWorker::addTrackToPlaylistDone, this, &Backend::addTrackToPlaylistComplete);
-        connect(worker, &SearchWorker::createPlaylistVisibleDone, this, &Backend::createPlaylistVisibleComplete);
-        connect(worker, &SearchWorker::removePlaylistTrackDone, this, &Backend::removePlaylistTrackComplete);
-        connect(worker, &SearchWorker::setPlaylistPublicDone, this, &Backend::setPlaylistPublicComplete);
-        connect(worker, &SearchWorker::savePlaylistOrderDone, this, &Backend::savePlaylistOrderComplete);
         connect(worker, &SearchWorker::itemFavouriteStateDone, this, &Backend::itemFavouriteStateComplete);
         connect(worker, &SearchWorker::setItemFavouriteDone, this, &Backend::setItemFavouriteComplete);
         connect(worker, &SearchWorker::trackFavouriteStateDone, this, &Backend::trackFavouriteStateComplete);
@@ -436,75 +278,16 @@ public:
         m_thread.wait();
     }
 
-    Q_INVOKABLE QString streamQualityPreference() const {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
-        QString value = settings.value(
-            "playback/streamQuality",
-            "lossless"
-        ).toString();
-
-        return value == "mp3" ? "mp3" : "lossless";
-    }
-
-    Q_INVOKABLE void setStreamQualityPreference(
-        const QString &quality
-    ) {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
-        settings.setValue(
-            "playback/streamQuality",
-            quality == "mp3" ? "mp3" : "lossless"
-        );
-
-        settings.sync();
-    }
-
     Q_INVOKABLE void search(const QString &query)        { emit requestSearch(query); }
     Q_INVOKABLE void searchAlbums(const QString &query)  { emit requestSearchAlbums(query); }
     Q_INVOKABLE void searchArtists(const QString &query) { emit requestSearchArtists(query); }
     Q_INVOKABLE void streamUrl(qulonglong id)            { emit requestStream(id); }
-    Q_INVOKABLE void streamUrlQuality(
-        qulonglong id,
-        const QString &quality
-    ) {
-        emit requestStreamQuality(id, quality);
-    }
-
     Q_INVOKABLE void album(const QString &albumId)       { emit requestAlbum(albumId); }
     Q_INVOKABLE void artist(qulonglong id)               { emit requestArtist(id); }
     Q_INVOKABLE void radioArtist(qulonglong id)          { emit requestRadioArtist(id); }
     Q_INVOKABLE void userPlaylists()                     { emit requestUserPlaylists(); }
     Q_INVOKABLE void playlist(qulonglong id)              { emit requestPlaylist(id); }
     Q_INVOKABLE void favourites(const QString &mode)      { emit requestFavourites(mode); }
-
-    Q_INVOKABLE void discoverFeatured() {
-        emit requestDiscoverFeatured();
-    }
-
-    Q_INVOKABLE void discoverAlbums(
-        const QString &endpoint,
-        qulonglong genreId,
-        uint offset,
-        uint limit
-    ) {
-        emit requestDiscoverAlbums(
-            endpoint,
-            genreId,
-            offset,
-            limit
-        );
-    }
-
-    Q_INVOKABLE void discoverGenres() {
-        emit requestDiscoverGenres();
-    }
 
     Q_INVOKABLE void createPlaylist(
         const QString &name,
@@ -518,48 +301,6 @@ public:
         qulonglong trackId
     ) {
         emit requestAddTrackToPlaylist(playlistId, trackId);
-    }
-
-    Q_INVOKABLE void createPlaylistVisible(
-        const QString &name,
-        qulonglong initialTrackId,
-        bool isPublic
-    ) {
-        emit requestCreatePlaylistVisible(
-            name,
-            initialTrackId,
-            isPublic
-        );
-    }
-
-    Q_INVOKABLE void removePlaylistTrack(
-        qulonglong playlistId,
-        qulonglong playlistTrackId
-    ) {
-        emit requestRemovePlaylistTrack(
-            playlistId,
-            playlistTrackId
-        );
-    }
-
-    Q_INVOKABLE void setPlaylistPublic(
-        qulonglong playlistId,
-        bool isPublic
-    ) {
-        emit requestSetPlaylistPublic(
-            playlistId,
-            isPublic
-        );
-    }
-
-    Q_INVOKABLE void savePlaylistOrder(
-        qulonglong playlistId,
-        const QString &orderedTrackIds
-    ) {
-        emit requestSavePlaylistOrder(
-            playlistId,
-            orderedTrackIds
-        );
     }
 
     Q_INVOKABLE void itemFavouriteState(
@@ -599,24 +340,12 @@ signals:
     void requestSearchAlbums(const QString &query);
     void requestSearchArtists(const QString &query);
     void requestStream(qulonglong id);
-    void requestStreamQuality(
-        qulonglong id,
-        const QString &quality
-    );
     void requestAlbum(const QString &albumId);
     void requestArtist(qulonglong id);
     void requestRadioArtist(qulonglong id);
     void requestUserPlaylists();
     void requestPlaylist(qulonglong id);
     void requestFavourites(const QString &mode);
-    void requestDiscoverFeatured();
-    void requestDiscoverAlbums(
-        const QString &endpoint,
-        qulonglong genreId,
-        uint offset,
-        uint limit
-    );
-    void requestDiscoverGenres();
     void requestCreatePlaylist(
         const QString &name,
         qulonglong initialTrackId
@@ -624,23 +353,6 @@ signals:
     void requestAddTrackToPlaylist(
         qulonglong playlistId,
         qulonglong trackId
-    );
-    void requestCreatePlaylistVisible(
-        const QString &name,
-        qulonglong initialTrackId,
-        bool isPublic
-    );
-    void requestRemovePlaylistTrack(
-        qulonglong playlistId,
-        qulonglong playlistTrackId
-    );
-    void requestSetPlaylistPublic(
-        qulonglong playlistId,
-        bool isPublic
-    );
-    void requestSavePlaylistOrder(
-        qulonglong playlistId,
-        const QString &orderedTrackIds
     );
     void requestItemFavouriteState(
         const QString &itemType,
@@ -667,15 +379,8 @@ signals:
     void userPlaylistsComplete(const QString &json);
     void playlistComplete(const QString &json);
     void favouritesComplete(const QString &json);
-    void discoverFeaturedComplete(const QString &json);
-    void discoverAlbumsComplete(const QString &json);
-    void discoverGenresComplete(const QString &json);
     void createPlaylistComplete(const QString &json);
     void addTrackToPlaylistComplete(const QString &json);
-    void createPlaylistVisibleComplete(const QString &json);
-    void removePlaylistTrackComplete(const QString &json);
-    void setPlaylistPublicComplete(const QString &json);
-    void savePlaylistOrderComplete(const QString &json);
     void itemFavouriteStateComplete(const QString &json);
     void setItemFavouriteComplete(const QString &json);
     void trackFavouriteStateComplete(const QString &json);

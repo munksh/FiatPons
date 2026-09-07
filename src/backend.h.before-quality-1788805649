@@ -4,7 +4,6 @@
 #include <QObject>
 #include <QThread>
 #include <QString>
-#include <QSettings>
 
 extern "C" {
     char *fp_search(const char *query);
@@ -434,36 +433,6 @@ public:
     ~Backend() override {
         m_thread.quit();
         m_thread.wait();
-    }
-
-    Q_INVOKABLE QString streamQualityPreference() const {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
-        QString value = settings.value(
-            "playback/streamQuality",
-            "lossless"
-        ).toString();
-
-        return value == "mp3" ? "mp3" : "lossless";
-    }
-
-    Q_INVOKABLE void setStreamQualityPreference(
-        const QString &quality
-    ) {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
-        settings.setValue(
-            "playback/streamQuality",
-            quality == "mp3" ? "mp3" : "lossless"
-        );
-
-        settings.sync();
     }
 
     Q_INVOKABLE void search(const QString &query)        { emit requestSearch(query); }

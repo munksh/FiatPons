@@ -4,14 +4,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
-use facade::{
-    Core,
-    FpTrack,
-    FpAlbum,
-    FpArtist,
-    FpPlaylist,
-    FavouritesPayload,
-};
+use facade::{Core, FpTrack, FpAlbum, FpArtist, FpPlaylist, FavouritesPayload};
 
 static RT:   Lazy<Runtime>             = Lazy::new(|| Runtime::new().expect("tokio runtime"));
 static CORE: Lazy<Mutex<Option<Core>>> = Lazy::new(|| Mutex::new(None));
@@ -60,14 +53,6 @@ pub extern "C" fn fp_stream_url(track_id: u64) -> *mut c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn fp_stream_url_quality(
-    track_id: u64,
-    quality: *const c_char,
-) -> *mut c_char {
-    to_c(build_stream_quality(track_id, quality))
-}
-
-#[no_mangle]
 pub extern "C" fn fp_album(album_id: *const c_char) -> *mut c_char {
     to_c(build_album(album_id))
 }
@@ -95,31 +80,6 @@ pub extern "C" fn fp_playlist(playlist_id: u64) -> *mut c_char {
 #[no_mangle]
 pub extern "C" fn fp_favourites(mode: *const c_char) -> *mut c_char {
     to_c(build_favourites(mode))
-}
-
-#[no_mangle]
-pub extern "C" fn fp_discover_featured() -> *mut c_char {
-    to_c(build_discover_featured())
-}
-
-#[no_mangle]
-pub extern "C" fn fp_discover_albums(
-    endpoint: *const c_char,
-    genre_id: u64,
-    offset: u32,
-    limit: u32,
-) -> *mut c_char {
-    to_c(build_discover_albums(
-        endpoint,
-        genre_id,
-        offset,
-        limit,
-    ))
-}
-
-#[no_mangle]
-pub extern "C" fn fp_discover_genres() -> *mut c_char {
-    to_c(build_discover_genres())
 }
 
 #[no_mangle]
@@ -269,34 +229,6 @@ fn build_stream(track_id: u64) -> String {
     }
 }
 
-fn build_stream_quality(
-    track_id: u64,
-    quality: *const c_char,
-) -> String {
-    let quality = match read_cstr(quality) {
-        Ok(value) => value,
-        Err(error) => return err_json(&error),
-    };
-
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref()
-            .unwrap()
-            .stream_url_quality(track_id, &quality)
-    ) {
-        Ok(stream) => serde_json::to_string(&stream)
-            .unwrap_or_else(|error| {
-                err_json(&error.to_string())
-            }),
-        Err(error) => err_json(&error),
-    }
-}
-
 fn build_album(album_id: *const c_char) -> String {
     let id = match read_cstr(album_id) { Ok(s) => s, Err(e) => return err_json(&e) };
     let mut slot = CORE.lock().unwrap();
@@ -370,73 +302,6 @@ fn build_favourites(mode: *const c_char) -> String {
     }
 }
 
-
-fn build_discover_featured() -> String {
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref().unwrap().discover_featured()
-    ) {
-        Ok(sections) => serde_json::json!({
-            "sections": sections
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_discover_albums(
-    endpoint: *const c_char,
-    genre_id: u64,
-    offset: u32,
-    limit: u32,
-) -> String {
-    let endpoint = match read_cstr(endpoint) {
-        Ok(value) => value,
-        Err(error) => return err_json(&error),
-    };
-
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref().unwrap().discover_albums(
-            &endpoint,
-            genre_id,
-            offset,
-            limit,
-        )
-    ) {
-        Ok(page) => serde_json::to_string(&page)
-            .unwrap_or_else(|error| {
-                err_json(&error.to_string())
-            }),
-        Err(error) => err_json(&error),
-    }
-}
-
-fn build_discover_genres() -> String {
-    let mut slot = CORE.lock().unwrap();
-
-    if let Err(error) = ensure_core(&mut slot) {
-        return err_json(&error);
-    }
-
-    match RT.block_on(
-        slot.as_ref().unwrap().discover_genres()
-    ) {
-        Ok(genres) => serde_json::json!({
-            "genres": genres
-        }).to_string(),
-        Err(error) => err_json(&error),
-    }
-}
 
 fn build_create_playlist(
     name: *const c_char,

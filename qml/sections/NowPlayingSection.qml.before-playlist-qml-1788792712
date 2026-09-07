@@ -485,14 +485,32 @@ Item {
                             section.addCurrentToPlaylist()
                         }
 
-                        Label {
-                            anchors.centerIn: parent
-                            text: "Add to playlist"
-                            color: highlighted
-                                   ? FiatPonsTheme.accent
-                                   : FiatPonsTheme.primaryText
-                            font.pixelSize: Theme.fontSizeSmall
-                            horizontalAlignment: Text.AlignHCenter
+                        Row {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.leftMargin:
+                                Theme.horizontalPageMargin
+                            anchors.rightMargin:
+                                Theme.horizontalPageMargin
+                            anchors.verticalCenter:
+                                parent.verticalCenter
+                            spacing: Theme.paddingMedium
+
+                            Label {
+                                text: "+"
+                                color: highlighted
+                                       ? FiatPonsTheme.accent
+                                       : FiatPonsTheme.secondaryText
+                                font.pixelSize: Theme.fontSizeLarge
+                            }
+
+                            Label {
+                                text: "Add to playlist"
+                                color: highlighted
+                                       ? FiatPonsTheme.accent
+                                       : FiatPonsTheme.primaryText
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
                         }
                     }
 
@@ -512,14 +530,33 @@ Item {
                             section.addCurrentToNewPlaylist()
                         }
 
-                        Label {
-                            anchors.centerIn: parent
-                            text: "Add to new playlist"
-                            color: highlighted
-                                   ? FiatPonsTheme.accent
-                                   : FiatPonsTheme.primaryText
-                            font.pixelSize: Theme.fontSizeSmall
-                            horizontalAlignment: Text.AlignHCenter
+                        Row {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.leftMargin:
+                                Theme.horizontalPageMargin
+                            anchors.rightMargin:
+                                Theme.horizontalPageMargin
+                            anchors.verticalCenter:
+                                parent.verticalCenter
+                            spacing: Theme.paddingMedium
+
+                            Label {
+                                text: "\u266B"
+                                color: highlighted
+                                       ? FiatPonsTheme.accent
+                                       : FiatPonsTheme.secondaryText
+                                font.pixelSize: Theme.fontSizeLarge
+                                font.family: FiatPonsTheme.serif
+                            }
+
+                            Label {
+                                text: "Add to new playlist"
+                                color: highlighted
+                                       ? FiatPonsTheme.accent
+                                       : FiatPonsTheme.primaryText
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
                         }
                     }
 

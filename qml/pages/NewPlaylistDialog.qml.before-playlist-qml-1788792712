@@ -63,10 +63,9 @@ Dialog {
         if (isNaN(trackId))
             trackId = 0
 
-        backend.createPlaylistVisible(
+        backend.createPlaylist(
             playlistName.text.trim(),
-            trackId,
-            publicSwitch.checked
+            trackId
         )
     }
 
@@ -96,14 +95,10 @@ Dialog {
             }
 
             TextSwitch {
-                id: publicSwitch
                 width: parent.width
                 text: "Public playlist"
-                description: checked
-                             ? "Anyone with the link can listen"
-                             : "Only visible in your library"
-                enabled: !dialog.saving
-                automaticCheck: true
+                description: "Coming later"
+                enabled: false
                 checked: false
             }
 

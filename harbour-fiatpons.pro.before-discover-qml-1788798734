@@ -40,11 +40,9 @@ OTHER_FILES += \
     qml/pages/PlaylistsPage.qml \
     qml/pages/NewPlaylistDialog.qml \
     qml/pages/PlaylistPickerPage.qml \
-    qml/pages/DiscoverListPage.qml \
     qml/components/PageHead.qml \
     qml/components/EmptyNote.qml \
     qml/components/ArtistPortrait.qml \
-    qml/components/AlbumPreview.qml \
     qml/cover/FiatPonsCover.qml \
     harbour-fiatpons.desktop \
     rpm/harbour-fiatpons.spec
