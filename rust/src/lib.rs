@@ -98,6 +98,35 @@ pub extern "C" fn fp_favourites(mode: *const c_char) -> *mut c_char {
 }
 
 #[no_mangle]
+pub extern "C" fn fp_oauth_url(
+    port: u16,
+) -> *mut c_char {
+    to_c(build_oauth_url(port))
+}
+
+#[no_mangle]
+pub extern "C" fn fp_login_code(
+    code: *const c_char,
+) -> *mut c_char {
+    to_c(build_login_code(code))
+}
+
+#[no_mangle]
+pub extern "C" fn fp_login_browser() -> *mut c_char {
+    to_c(build_login_browser())
+}
+
+#[no_mangle]
+pub extern "C" fn fp_logout() -> *mut c_char {
+    to_c(build_logout())
+}
+
+#[no_mangle]
+pub extern "C" fn fp_is_logged_in() -> *mut c_char {
+    to_c(build_is_logged_in())
+}
+
+#[no_mangle]
 pub extern "C" fn fp_discover_featured() -> *mut c_char {
     to_c(build_discover_featured())
 }
@@ -370,6 +399,91 @@ fn build_favourites(mode: *const c_char) -> String {
     }
 }
 
+
+fn build_oauth_url(port: u16) -> String {
+    let mut slot = CORE.lock().unwrap();
+
+    if slot.is_none() {
+        match RT.block_on(Core::new()) {
+            Ok(core) => *slot = Some(core),
+            Err(error) => {
+                return format!("ERROR:{error}")
+            }
+        }
+    }
+
+    match RT.block_on(
+        slot.as_ref().unwrap().oauth_url(port)
+    ) {
+        Ok(url) => url,
+        Err(error) => format!("ERROR:{error}"),
+    }
+}
+
+fn build_login_code(
+    code: *const c_char,
+) -> String {
+    let code = match read_cstr(code) {
+        Ok(value) => value,
+        Err(error) => return err_json(&error),
+    };
+
+    let mut slot = CORE.lock().unwrap();
+
+    if slot.is_none() {
+        match RT.block_on(Core::new()) {
+            Ok(core) => *slot = Some(core),
+            Err(error) => return err_json(&error),
+        }
+    }
+
+    match RT.block_on(
+        slot.as_ref()
+            .unwrap()
+            .login_with_code_and_save(&code)
+    ) {
+        Ok(display_name) => serde_json::json!({
+            "ok": true,
+            "display_name": display_name
+        }).to_string(),
+        Err(error) => err_json(&error),
+    }
+}
+
+fn build_login_browser() -> String {
+    let mut slot = CORE.lock().unwrap();
+
+    if slot.is_none() {
+        match RT.block_on(Core::new()) {
+            Ok(core) => *slot = Some(core),
+            Err(error) => return err_json(&error),
+        }
+    }
+
+    match RT.block_on(slot.as_ref().unwrap().login_browser_and_save()) {
+        Ok(display_name) => serde_json::json!({
+            "ok": true,
+            "display_name": display_name
+        }).to_string(),
+        Err(error) => err_json(&error),
+    }
+}
+
+fn build_logout() -> String {
+    let mut slot = CORE.lock().unwrap();
+    *slot = None;
+
+    match Core::logout() {
+        Ok(()) => serde_json::json!({ "ok": true }).to_string(),
+        Err(error) => err_json(&error),
+    }
+}
+
+fn build_is_logged_in() -> String {
+    serde_json::json!({
+        "logged_in": Core::has_token_file()
+    }).to_string()
+}
 
 fn build_discover_featured() -> String {
     let mut slot = CORE.lock().unwrap();

@@ -5,6 +5,14 @@
 #include <QThread>
 #include <QString>
 #include <QSettings>
+#include <QtNetwork/QTcpServer>
+#include <QtNetwork/QTcpSocket>
+#include <QtNetwork/QHostAddress>
+#include <QtGui/QDesktopServices>
+#include <QtCore/QUrl>
+#include <QtCore/QUrlQuery>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
 
 extern "C" {
     char *fp_search(const char *query);
@@ -21,6 +29,15 @@ extern "C" {
     char *fp_user_playlists();
     char *fp_playlist(unsigned long long playlist_id);
     char *fp_favourites(const char *mode);
+    char *fp_oauth_url(
+        unsigned short port
+    );
+    char *fp_login_code(
+        const char *code
+    );
+    char *fp_login_browser();
+    char *fp_logout();
+    char *fp_is_logged_in();
     char *fp_discover_featured();
     char *fp_discover_albums(
         const char *endpoint,
@@ -167,6 +184,46 @@ public slots:
         QString out = QString::fromUtf8(raw);
         fp_free(raw);
         emit favouritesDone(out);
+    }
+
+    void doOAuthUrl(quint16 port) {
+        char *raw = fp_oauth_url(port);
+        QString out = QString::fromUtf8(raw);
+        fp_free(raw);
+        emit oauthUrlDone(out);
+    }
+
+    void doLoginCode(const QString &code) {
+        QByteArray encoded = code.toUtf8();
+
+        char *raw = fp_login_code(
+            encoded.constData()
+        );
+
+        QString out = QString::fromUtf8(raw);
+        fp_free(raw);
+        emit loginCodeDone(out);
+    }
+
+    void doLoginBrowser() {
+        char *raw = fp_login_browser();
+        QString out = QString::fromUtf8(raw);
+        fp_free(raw);
+        emit loginComplete(out);
+    }
+
+    void doLogout() {
+        char *raw = fp_logout();
+        QString out = QString::fromUtf8(raw);
+        fp_free(raw);
+        emit logoutComplete(out);
+    }
+
+    void doIsLoggedIn() {
+        char *raw = fp_is_logged_in();
+        QString out = QString::fromUtf8(raw);
+        fp_free(raw);
+        emit isLoggedInComplete(out);
     }
 
     void doDiscoverFeatured() {
@@ -353,6 +410,11 @@ signals:
     void userPlaylistsDone(const QString &json);
     void playlistDone(const QString &json);
     void favouritesDone(const QString &json);
+    void oauthUrlDone(const QString &url);
+    void loginCodeDone(const QString &json);
+    void loginComplete(const QString &json);
+    void logoutComplete(const QString &json);
+    void isLoggedInComplete(const QString &json);
     void discoverFeaturedDone(const QString &json);
     void discoverAlbumsDone(const QString &json);
     void discoverGenresDone(const QString &json);
@@ -390,6 +452,10 @@ public:
         connect(this, &Backend::requestUserPlaylists, worker, &SearchWorker::doUserPlaylists);
         connect(this, &Backend::requestPlaylist,      worker, &SearchWorker::doPlaylist);
         connect(this, &Backend::requestFavourites,    worker, &SearchWorker::doFavourites);
+        connect(this, &Backend::requestOAuthUrl, worker, &SearchWorker::doOAuthUrl);
+        connect(this, &Backend::requestLoginCode, worker, &SearchWorker::doLoginCode);
+        connect(this, &Backend::requestLogout, worker, &SearchWorker::doLogout);
+        connect(this, &Backend::requestIsLoggedIn, worker, &SearchWorker::doIsLoggedIn);
         connect(this, &Backend::requestDiscoverFeatured, worker, &SearchWorker::doDiscoverFeatured);
         connect(this, &Backend::requestDiscoverAlbums, worker, &SearchWorker::doDiscoverAlbums);
         connect(this, &Backend::requestDiscoverGenres, worker, &SearchWorker::doDiscoverGenres);
@@ -414,6 +480,24 @@ public:
         connect(worker, &SearchWorker::userPlaylistsDone, this, &Backend::userPlaylistsComplete);
         connect(worker, &SearchWorker::playlistDone,      this, &Backend::playlistComplete);
         connect(worker, &SearchWorker::favouritesDone,    this, &Backend::favouritesComplete);
+        connect(
+            worker,
+            &SearchWorker::oauthUrlDone,
+            this,
+            [this](const QString &result) {
+                handleOAuthUrl(result);
+            }
+        );
+
+        connect(
+            worker,
+            &SearchWorker::loginCodeDone,
+            this,
+            &Backend::loginComplete
+        );
+
+        connect(worker, &SearchWorker::logoutComplete, this, &Backend::logoutComplete);
+        connect(worker, &SearchWorker::isLoggedInComplete, this, &Backend::isLoggedInComplete);
         connect(worker, &SearchWorker::discoverFeaturedDone, this, &Backend::discoverFeaturedComplete);
         connect(worker, &SearchWorker::discoverAlbumsDone, this, &Backend::discoverAlbumsComplete);
         connect(worker, &SearchWorker::discoverGenresDone, this, &Backend::discoverGenresComplete);
@@ -434,6 +518,117 @@ public:
     ~Backend() override {
         m_thread.quit();
         m_thread.wait();
+    }
+
+    Q_INVOKABLE void loginProbeStart() {
+        QTcpServer *server = new QTcpServer(this);
+
+        connect(
+            server,
+            &QTcpServer::newConnection,
+            this,
+            [this, server]() {
+                QTcpSocket *socket =
+                    server->nextPendingConnection();
+
+                connect(
+                    socket,
+                    &QTcpSocket::readyRead,
+                    this,
+                    [this, server, socket]() {
+                        QByteArray request =
+                            socket->readAll();
+
+                        QByteArray body =
+                            "<!doctype html>"
+                            "<html>"
+                            "<head>"
+                            "<meta charset=\"utf-8\">"
+                            "<meta name=\"viewport\" "
+                            "content=\"width=device-width,"
+                            "initial-scale=1\">"
+                            "<title>FiatPons</title>"
+                            "</head>"
+                            "<body style=\"font-family:sans-serif;"
+                            "text-align:center;padding:3rem\">"
+                            "<h1>FiatPons callback OK</h1>"
+                            "<p>You can return to FiatPons.</p>"
+                            "</body>"
+                            "</html>";
+
+                        QByteArray response =
+                            "HTTP/1.1 200 OK\r\n"
+                            "Content-Type: text/html; "
+                            "charset=utf-8\r\n"
+                            "Content-Length: "
+                            + QByteArray::number(body.size())
+                            + "\r\n"
+                            "Connection: close\r\n"
+                            "Cache-Control: no-store\r\n"
+                            "\r\n"
+                            + body;
+
+                        connect(
+                            socket,
+                            &QTcpSocket::disconnected,
+                            server,
+                            &QObject::deleteLater
+                        );
+
+                        socket->write(response);
+                        socket->flush();
+
+                        emit loginProbeComplete(
+                            QString(
+                                "OK: browser reached the "
+                                "localhost callback. "
+                                "Request: "
+                            )
+                            + QString::fromUtf8(
+                                request.left(120)
+                            )
+                        );
+
+                        server->close();
+                        socket->disconnectFromHost();
+                    }
+                );
+            }
+        );
+
+        if (!server->listen(
+                QHostAddress::LocalHost,
+                0
+        )) {
+            emit loginProbeComplete(
+                "FAIL: could not bind localhost: "
+                + server->errorString()
+            );
+
+            server->deleteLater();
+            return;
+        }
+
+        quint16 port = server->serverPort();
+
+        QUrl url(
+            QString(
+                "http://localhost:%1/"
+                "?code_autorisation=test-code"
+            ).arg(port)
+        );
+
+        bool opened =
+            QDesktopServices::openUrl(url);
+
+        emit loginProbeComplete(
+            QString(
+                "Waiting on 127.0.0.1:%1. "
+                "Browser open: %2"
+            )
+            .arg(port)
+            .arg(opened ? "yes" : "no")
+        );
     }
 
     Q_INVOKABLE QString streamQualityPreference() const {
@@ -483,6 +678,18 @@ public:
     Q_INVOKABLE void userPlaylists()                     { emit requestUserPlaylists(); }
     Q_INVOKABLE void playlist(qulonglong id)              { emit requestPlaylist(id); }
     Q_INVOKABLE void favourites(const QString &mode)      { emit requestFavourites(mode); }
+
+    Q_INVOKABLE void loginBrowser() {
+        startOAuthBrowser();
+    }
+
+    Q_INVOKABLE void logout() {
+        emit requestLogout();
+    }
+
+    Q_INVOKABLE void isLoggedIn() {
+        emit requestIsLoggedIn();
+    }
 
     Q_INVOKABLE void discoverFeatured() {
         emit requestDiscoverFeatured();
@@ -609,6 +816,11 @@ signals:
     void requestUserPlaylists();
     void requestPlaylist(qulonglong id);
     void requestFavourites(const QString &mode);
+    void requestOAuthUrl(quint16 port);
+    void requestLoginCode(const QString &code);
+    void requestLoginBrowser();
+    void requestLogout();
+    void requestIsLoggedIn();
     void requestDiscoverFeatured();
     void requestDiscoverAlbums(
         const QString &endpoint,
@@ -667,6 +879,9 @@ signals:
     void userPlaylistsComplete(const QString &json);
     void playlistComplete(const QString &json);
     void favouritesComplete(const QString &json);
+    void loginComplete(const QString &json);
+    void logoutComplete(const QString &json);
+    void isLoggedInComplete(const QString &json);
     void discoverFeaturedComplete(const QString &json);
     void discoverAlbumsComplete(const QString &json);
     void discoverGenresComplete(const QString &json);
@@ -680,8 +895,189 @@ signals:
     void setItemFavouriteComplete(const QString &json);
     void trackFavouriteStateComplete(const QString &json);
     void setTrackFavouriteComplete(const QString &json);
+    void loginProbeComplete(const QString &json);
 
 private:
+    QString loginErrorJson(
+        const QString &message
+    ) const {
+        QJsonObject object;
+        object.insert("error", message);
+
+        return QString::fromUtf8(
+            QJsonDocument(object)
+                .toJson(QJsonDocument::Compact)
+        );
+    }
+
+    void cleanupOAuthServer() {
+        if (!m_oauthServer)
+            return;
+
+        m_oauthServer->close();
+        m_oauthServer->deleteLater();
+        m_oauthServer = nullptr;
+    }
+
+    void startOAuthBrowser() {
+        cleanupOAuthServer();
+
+        m_oauthServer = new QTcpServer(this);
+
+        connect(
+            m_oauthServer,
+            &QTcpServer::newConnection,
+            this,
+            [this]() {
+                if (!m_oauthServer)
+                    return;
+
+                QTcpSocket *socket =
+                    m_oauthServer
+                        ->nextPendingConnection();
+
+                connect(
+                    socket,
+                    &QTcpSocket::readyRead,
+                    this,
+                    [this, socket]() {
+                        QByteArray request =
+                            socket->readAll();
+
+                        QString firstLine =
+                            QString::fromUtf8(request)
+                                .section('\n', 0, 0)
+                                .trimmed();
+
+                        QString target =
+                            firstLine.section(' ', 1, 1);
+
+                        QUrl callbackUrl(target);
+                        QUrlQuery query(callbackUrl);
+
+                        QString code =
+                            query.queryItemValue(
+                                "code_autorisation"
+                            );
+
+                        if (code.isEmpty()) {
+                            code = query.queryItemValue(
+                                "code"
+                            );
+                        }
+
+                        bool success = !code.isEmpty();
+
+                        QByteArray body = success
+                            ? QByteArray(
+                                "<!doctype html>"
+                                "<html><body style=\""
+                                "font-family:sans-serif;"
+                                "text-align:center;"
+                                "padding:3rem\">"
+                                "<h1>FiatPons login complete"
+                                "</h1>"
+                                "<p>You can return to "
+                                "FiatPons.</p>"
+                                "</body></html>"
+                            )
+                            : QByteArray(
+                                "<!doctype html>"
+                                "<html><body style=\""
+                                "font-family:sans-serif;"
+                                "text-align:center;"
+                                "padding:3rem\">"
+                                "<h1>Login failed</h1>"
+                                "<p>No authorization code "
+                                "was received.</p>"
+                                "</body></html>"
+                            );
+
+                        QByteArray response =
+                            "HTTP/1.1 200 OK\r\n"
+                            "Content-Type: text/html; "
+                            "charset=utf-8\r\n"
+                            "Content-Length: "
+                            + QByteArray::number(
+                                body.size()
+                            )
+                            + "\r\n"
+                            "Connection: close\r\n"
+                            "Cache-Control: no-store\r\n"
+                            "\r\n"
+                            + body;
+
+                        socket->write(response);
+                        socket->flush();
+                        socket->disconnectFromHost();
+
+                        cleanupOAuthServer();
+
+                        if (success) {
+                            emit requestLoginCode(code);
+                        } else {
+                            emit loginComplete(
+                                loginErrorJson(
+                                    "No OAuth code received"
+                                )
+                            );
+                        }
+                    }
+                );
+            }
+        );
+
+        if (!m_oauthServer->listen(
+                QHostAddress::LocalHost,
+                0
+        )) {
+            QString error =
+                m_oauthServer->errorString();
+
+            cleanupOAuthServer();
+
+            emit loginComplete(
+                loginErrorJson(
+                    "Could not start callback: "
+                    + error
+                )
+            );
+            return;
+        }
+
+        emit requestOAuthUrl(
+            m_oauthServer->serverPort()
+        );
+    }
+
+    void handleOAuthUrl(
+        const QString &result
+    ) {
+        if (result.startsWith("ERROR:")) {
+            cleanupOAuthServer();
+
+            emit loginComplete(
+                loginErrorJson(
+                    result.mid(6)
+                )
+            );
+            return;
+        }
+
+        if (!QDesktopServices::openUrl(
+                QUrl(result)
+        )) {
+            cleanupOAuthServer();
+
+            emit loginComplete(
+                loginErrorJson(
+                    "Could not open system browser"
+                )
+            );
+        }
+    }
+
+    QTcpServer *m_oauthServer = nullptr;
     QThread m_thread;
 };
 

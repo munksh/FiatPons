@@ -3,6 +3,10 @@ use serde_json::Value;
 
 use qbz_models::Quality;
 use qbz_qobuz::QobuzClient;
+use std::path::PathBuf;
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
 pub struct Core {
     client: QobuzClient,
@@ -373,6 +377,156 @@ impl Core {
             }
             _ => Err(format!("unknown favourites mode: {mode}")),
         }
+    }
+
+
+    fn token_file() -> Result<PathBuf, String> {
+        let home = std::env::var("HOME")
+            .map_err(|_| "HOME is not set".to_string())?;
+
+        Ok(PathBuf::from(home)
+            .join(".local/share/se.munkstolen/harbour-fiatpons/token"))
+    }
+
+    fn write_token(token: &str) -> Result<(), String> {
+        let path = Self::token_file()?;
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| e.to_string())?;
+        }
+
+        std::fs::write(&path, token)
+            .map_err(|e| e.to_string())?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            std::fs::set_permissions(
+                &path,
+                std::fs::Permissions::from_mode(0o600),
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    pub fn logout() -> Result<(), String> {
+        let path = Self::token_file()?;
+
+        match std::fs::remove_file(&path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    pub fn has_token_file() -> bool {
+        Self::token_file()
+            .map(|path| path.exists())
+            .unwrap_or(false)
+    }
+
+    pub async fn oauth_url(
+        &self,
+        port: u16,
+    ) -> Result<String, String> {
+        let app_id = self
+            .client
+            .app_id()
+            .await
+            .map_err(|error| {
+                format!("app_id unavailable: {error}")
+            })?;
+
+        let redirect = format!(
+            "http://localhost:{port}"
+        );
+
+        Ok(format!(
+            "https://www.qobuz.com/signin/oauth?ext_app_id={}&redirect_url={}",
+            app_id,
+            urlencoding::encode(&redirect),
+        ))
+    }
+
+    pub async fn login_with_code_and_save(
+        &self,
+        code: &str,
+    ) -> Result<String, String> {
+        let code = code.trim();
+
+        if code.is_empty() {
+            return Err(
+                "empty OAuth authorization code".into()
+            );
+        }
+
+        let session = self
+            .client
+            .login_with_oauth_code(code)
+            .await
+            .map_err(|error| {
+                format!("token exchange failed: {error}")
+            })?;
+
+        Self::write_token(
+            &session.user_auth_token
+        )?;
+
+        if session.display_name.is_empty() {
+            Ok("Qobuz".to_string())
+        } else {
+            Ok(session.display_name)
+        }
+    }
+
+    pub async fn login_browser_and_save(&self) -> Result<String, String> {
+        let app_id = self
+            .client
+            .app_id()
+            .await
+            .map_err(|e| format!("app_id unavailable: {e}"))?;
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|e| format!("could not bind localhost: {e}"))?;
+
+        let port = listener
+            .local_addr()
+            .map_err(|e| e.to_string())?
+            .port();
+
+        let redirect = format!("http://localhost:{port}");
+
+        let oauth_url = format!(
+            "https://www.qobuz.com/signin/oauth?ext_app_id={}&redirect_url={}",
+            app_id,
+            urlencoding::encode(&redirect),
+        );
+
+        open::that(&oauth_url)
+            .map_err(|e| format!("could not open browser: {e}"))?;
+
+        let code = tokio::time::timeout(
+            Duration::from_secs(180),
+            capture_oauth_code(listener),
+        )
+        .await
+        .map_err(|_| "OAuth login timed out".to_string())?
+        .ok_or_else(|| "OAuth login cancelled or no code received".to_string())?;
+
+        let session = self
+            .client
+            .login_with_oauth_code(&code)
+            .await
+            .map_err(|e| format!("token exchange failed: {e}"))?;
+
+        Self::write_token(&session.user_auth_token)?;
+
+        Ok(if session.display_name.is_empty() { "Qobuz".to_string() } else { session.display_name })
     }
 
     pub async fn discover_featured(
@@ -893,6 +1047,64 @@ impl Core {
                 .map_err(|e| e.to_string())
         }
     }
+}
+
+
+async fn capture_oauth_code(listener: TcpListener) -> Option<String> {
+    loop {
+        let (mut stream, _) = listener.accept().await.ok()?;
+
+        let mut buf = [0u8; 8192];
+        let n = stream.read(&mut buf).await.ok()?;
+
+        let request = String::from_utf8_lossy(&buf[..n]);
+
+        let target = request
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .unwrap_or("");
+
+        let code = query_param(target, "code_autorisation")
+            .or_else(|| query_param(target, "code"));
+
+        let body = if code.is_some() {
+            "<html><body><h1>FiatPons login complete</h1><p>You can return to FiatPons.</p></body></html>"
+        } else {
+            "<html><body><h1>FiatPons</h1><p>No OAuth code found.</p></body></html>"
+        };
+
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.as_bytes().len(),
+            body,
+        );
+
+        let _ = stream.write_all(response.as_bytes()).await;
+        let _ = stream.shutdown().await;
+
+        if code.is_some() {
+            return code;
+        }
+    }
+}
+
+fn query_param(target: &str, key: &str) -> Option<String> {
+    let query = target.split('?').nth(1)?;
+
+    for part in query.split('&') {
+        let mut pieces = part.splitn(2, '=');
+        let k = pieces.next().unwrap_or("");
+        let v = pieces.next().unwrap_or("");
+
+        if k == key {
+            return urlencoding::decode(v)
+                .ok()
+                .map(|decoded| decoded.to_string());
+        }
+    }
+
+    None
 }
 
 fn discover_section(

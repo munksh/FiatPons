@@ -1,5 +1,6 @@
 TARGET = harbour-fiatpons
 CONFIG += sailfishapp
+QT += network
 
 SOURCES += src/harbour-fiatpons.cpp
 HEADERS += src/backend.h

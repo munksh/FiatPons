@@ -17,3 +17,5 @@ once_cell  = "1"
 
 # Hold transitive deps back to versions the SDK's cargo (1.75) can parse.
 zeroize    = "=1.8.1"
+open = "5"
+urlencoding = "2"
