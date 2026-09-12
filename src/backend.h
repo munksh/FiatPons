@@ -520,118 +520,7 @@ public:
         m_thread.wait();
     }
 
-    Q_INVOKABLE void loginProbeStart() {
-        QTcpServer *server = new QTcpServer(this);
-
-        connect(
-            server,
-            &QTcpServer::newConnection,
-            this,
-            [this, server]() {
-                QTcpSocket *socket =
-                    server->nextPendingConnection();
-
-                connect(
-                    socket,
-                    &QTcpSocket::readyRead,
-                    this,
-                    [this, server, socket]() {
-                        QByteArray request =
-                            socket->readAll();
-
-                        QByteArray body =
-                            "<!doctype html>"
-                            "<html>"
-                            "<head>"
-                            "<meta charset=\"utf-8\">"
-                            "<meta name=\"viewport\" "
-                            "content=\"width=device-width,"
-                            "initial-scale=1\">"
-                            "<title>FiatPons</title>"
-                            "</head>"
-                            "<body style=\"font-family:sans-serif;"
-                            "text-align:center;padding:3rem\">"
-                            "<h1>FiatPons callback OK</h1>"
-                            "<p>You can return to FiatPons.</p>"
-                            "</body>"
-                            "</html>";
-
-                        QByteArray response =
-                            "HTTP/1.1 200 OK\r\n"
-                            "Content-Type: text/html; "
-                            "charset=utf-8\r\n"
-                            "Content-Length: "
-                            + QByteArray::number(body.size())
-                            + "\r\n"
-                            "Connection: close\r\n"
-                            "Cache-Control: no-store\r\n"
-                            "\r\n"
-                            + body;
-
-                        connect(
-                            socket,
-                            &QTcpSocket::disconnected,
-                            server,
-                            &QObject::deleteLater
-                        );
-
-                        socket->write(response);
-                        socket->flush();
-
-                        emit loginProbeComplete(
-                            QString(
-                                "OK: browser reached the "
-                                "localhost callback. "
-                                "Request: "
-                            )
-                            + QString::fromUtf8(
-                                request.left(120)
-                            )
-                        );
-
-                        server->close();
-                        socket->disconnectFromHost();
-                    }
-                );
-            }
-        );
-
-        if (!server->listen(
-                QHostAddress::LocalHost,
-                0
-        )) {
-            emit loginProbeComplete(
-                "FAIL: could not bind localhost: "
-                + server->errorString()
-            );
-
-            server->deleteLater();
-            return;
-        }
-
-        quint16 port = server->serverPort();
-
-        QUrl url(
-            QString(
-                "http://localhost:%1/"
-                "?code_autorisation=test-code"
-            ).arg(port)
-        );
-
-        bool opened =
-            QDesktopServices::openUrl(url);
-
-        emit loginProbeComplete(
-            QString(
-                "Waiting on 127.0.0.1:%1. "
-                "Browser open: %2"
-            )
-            .arg(port)
-            .arg(opened ? "yes" : "no")
-        );
-    }
-
-    Q_INVOKABLE QString streamQualityPreference() const {
+Q_INVOKABLE QString streamQualityPreference() const {
         QSettings settings(
             "se.munkstolen",
             "harbour-fiatpons"
@@ -642,7 +531,13 @@ public:
             "lossless"
         ).toString();
 
-        return value == "mp3" ? "mp3" : "lossless";
+        if (value == "mp3"
+                || value == "lossless"
+                || value == "hires"
+                || value == "ultrahires")
+            return value;
+
+        return "lossless";
     }
 
     Q_INVOKABLE void setStreamQualityPreference(
@@ -653,9 +548,17 @@ public:
             "harbour-fiatpons"
         );
 
+        QString value = quality;
+
+        if (value != "mp3"
+                && value != "lossless"
+                && value != "hires"
+                && value != "ultrahires")
+            value = "lossless";
+
         settings.setValue(
             "playback/streamQuality",
-            quality == "mp3" ? "mp3" : "lossless"
+            value
         );
 
         settings.sync();
@@ -895,7 +798,6 @@ signals:
     void setItemFavouriteComplete(const QString &json);
     void trackFavouriteStateComplete(const QString &json);
     void setTrackFavouriteComplete(const QString &json);
-    void loginProbeComplete(const QString &json);
 
 private:
     QString loginErrorJson(

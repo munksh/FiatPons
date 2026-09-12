@@ -12,7 +12,6 @@ Page {
     property bool authBusy: false
     property string authStatus: ""
 
-    property string probeStatus: ""
 
     function paint() { FiatPonsTheme.applyPalette(page) }
     Component.onCompleted: { paint(); backend.isLoggedIn() }
@@ -24,10 +23,6 @@ Page {
 
     Connections {
         target: backend
-        onLoginProbeComplete: {
-            page.probeStatus = json
-        }
-
         onLoginComplete: {
             page.authBusy = false
 
@@ -95,31 +90,6 @@ Page {
                 onClicked: FiatPonsTheme.setAmbient(!FiatPonsTheme.ambient)
             }
 
-            SectionHeader { text: "Login probe" }
-
-            Button {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Test browser open"
-                onClicked: Qt.openUrlExternally("https://www.qobuz.com/")
-            }
-
-            Button {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Test localhost callback"
-                onClicked: backend.loginProbeStart()
-            }
-
-            Label {
-                width: parent.width - Theme.horizontalPageMargin * 2
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: probeStatus
-                color: FiatPonsTheme.secondaryText
-                font.pixelSize: Theme.fontSizeSmall
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
-                visible: text.length > 0
-            }
-
             SectionHeader { text: "Account" }
 
             Button {
@@ -157,30 +127,54 @@ Page {
 
                 width: parent.width
                 label: "Streaming quality"
-                description: app.playback.preferredQuality === "mp3"
-                             ? "MP3 320 kbps"
-                             : "Lossless CD quality"
+                description:
+                    app.playback.preferredQualityLabel()
+
                 currentIndex:
-                    app.playback.preferredQuality === "mp3"
-                    ? 1
-                    : 0
+                    app.playback.preferredQuality === "mp3" ? 0
+                    : app.playback.preferredQuality === "lossless" ? 1
+                    : app.playback.preferredQuality === "hires" ? 2
+                    : 3
 
                 menu: ContextMenu {
                     MenuItem {
-                        text: "CD (FLAC 16/44.1)"
+                        text: "MP3 320"
                         onClicked:
-                            app.playback.setPreferredQuality(
-                                "lossless"
-                            )
+                            app.playback.setPreferredQuality("mp3")
                     }
 
                     MenuItem {
-                        text: "MP3 320"
+                        text: "CD (FLAC 16/44.1)"
                         onClicked:
-                            app.playback.setPreferredQuality(
-                                "mp3"
-                            )
+                            app.playback.setPreferredQuality("lossless")
                     }
+
+                    MenuItem {
+                        text: "Hi-Res (up to 24/96)"
+                        onClicked:
+                            app.playback.setPreferredQuality("hires")
+                    }
+
+                    MenuItem {
+                        text: "Hi-Res Max (up to 24/192)"
+                        onClicked:
+                            app.playback.setPreferredQuality("ultrahires")
+                    }
+                }
+            }
+
+            SectionHeader { text: "" }
+            BackgroundItem {
+                width: parent.width
+                height: Theme.itemSizeSmall
+                onClicked: pageStack.push(Qt.resolvedUrl("AboutPage.qml"))
+                Label {
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "About Fiat Pons"
+                    color: FiatPonsTheme.primaryText
+                    font.pixelSize: Theme.fontSizeMedium
                 }
             }
         }

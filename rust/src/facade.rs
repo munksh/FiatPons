@@ -157,6 +157,8 @@ impl Core {
         let quality = match quality_name {
             "mp3" => Quality::Mp3,
             "lossless" | "cd" => Quality::Lossless,
+            "hires" => Quality::HiRes,
+            "ultrahires" => Quality::UltraHiRes,
             _ => return Err(format!(
                 "unsupported stream quality: {quality_name}"
             )),

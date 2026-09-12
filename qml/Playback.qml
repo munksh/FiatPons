@@ -23,6 +23,17 @@ Item {
     property int repeatMode: 0
     property bool explicitlyStopped: false
 
+    // Transient state used when replacing a stream without losing position.
+    property int resumePosition: -1
+    property bool resumePending: false
+    property int resumeAttempts: 0
+    property int resumeConfirmations: 0
+
+    // Verifies that a newly selected track really remains in PlayingState.
+    property bool trackStartIssued: false
+    property int trackStartAttempts: 0
+    property int trackStartConfirmations: 0
+
     readonly property bool playing:
         player.playbackState === MediaPlayer.PlayingState
 
@@ -33,27 +44,46 @@ Item {
         console.log("[PB] " + m)
     }
 
+    function normalizeQuality(value) {
+        if (value === "mp3"
+                || value === "lossless"
+                || value === "hires"
+                || value === "ultrahires")
+            return value
+
+        return "lossless"
+    }
+
     function preferredQualityLabel() {
-        return preferredQuality === "mp3"
-               ? "MP3 320"
-               : "CD (FLAC 16/44.1)"
+        if (preferredQuality === "mp3")
+            return "MP3 320"
+
+        if (preferredQuality === "hires")
+            return "Hi-Res (up to 24/96)"
+
+        if (preferredQuality === "ultrahires")
+            return "Hi-Res Max (up to 24/192)"
+
+        return "CD (FLAC 16/44.1)"
     }
 
     function setPreferredQuality(value) {
-        if (value !== "mp3")
-            value = "lossless"
+        value = normalizeQuality(value)
 
         if (preferredQuality === value)
             return
 
-        var resume =
+        var resumePlayback =
             player.playbackState === MediaPlayer.PlayingState
+
+        var savedPosition =
+            nowTrack ? player.position : -1
 
         preferredQuality = value
         backend.setStreamQualityPreference(value)
 
         if (queue && queue.currentTrack())
-            playback.load(resume)
+            playback.load(resumePlayback, savedPosition)
     }
 
     Connections {
@@ -61,14 +91,27 @@ Item {
         onCurrentChanged: playback.load(true)
     }
 
-    function load(playAfterResolve) {
+    function load(playAfterResolve, positionAfterResolve) {
         if (playAfterResolve === undefined)
             playAfterResolve = true
+
+        if (positionAfterResolve === undefined)
+            positionAfterResolve = -1
 
         var t = queue ? queue.currentTrack() : null
 
         inflightTrack = t
         playWhenResolved = playAfterResolve
+        resumeTimer.stop()
+        trackStartTimer.stop()
+        trackStartIssued = false
+        trackStartAttempts = 0
+        trackStartConfirmations = 0
+        resumeAttempts = 0
+        resumeConfirmations = 0
+        resumePosition =
+            Math.max(-1, Math.round(positionAfterResolve))
+        resumePending = resumePosition > 0
         shouldPlay = false
         explicitlyStopped = false
         pending += 1
@@ -97,6 +140,15 @@ Item {
             player.stop()
             player.source = ""
             nowTrack = null
+            resumeTimer.stop()
+            trackStartTimer.stop()
+            trackStartIssued = false
+            trackStartAttempts = 0
+            trackStartConfirmations = 0
+            resumePosition = -1
+            resumePending = false
+            resumeAttempts = 0
+            resumeConfirmations = 0
             statusLine = ""
         }
     }
@@ -106,18 +158,23 @@ Item {
             return
 
         explicitlyStopped = false
-
-        if (player.playbackState !== MediaPlayer.PlayingState)
-            player.play()
+        playWhenResolved = true
+        player.play()
     }
 
     function pause() {
+        playWhenResolved = false
+        shouldPlay = false
+        trackStartTimer.stop()
+
         if (player.playbackState === MediaPlayer.PlayingState)
             player.pause()
     }
 
     function stop() {
+        playWhenResolved = false
         shouldPlay = false
+        trackStartTimer.stop()
         explicitlyStopped = true
         player.stop()
     }
@@ -149,6 +206,53 @@ Item {
 
         player.seek(target)
         mpris.seeked(target)
+    }
+
+    function finishPendingLoad() {
+        var ready =
+            player.status === MediaPlayer.Loaded
+            || player.status === MediaPlayer.Buffered
+            || player.status === MediaPlayer.Buffering
+
+        if (!ready)
+            return
+
+        if (resumePending) {
+            // Start the replacement stream first if the old stream was
+            // playing. Actual seeking is delayed until GStreamer has finished
+            // replacing its internal stream collection.
+            if (shouldPlay) {
+                shouldPlay = false
+
+                log(
+                    "starting replacement stream before delayed resume"
+                )
+
+                play()
+            }
+
+            if (!resumeTimer.running) {
+                resumeAttempts = 0
+                resumeConfirmations = 0
+                resumeTimer.start()
+            }
+
+            return
+        }
+
+        if (shouldPlay
+                && !trackStartTimer.running) {
+            trackStartIssued = false
+            trackStartAttempts = 0
+            trackStartConfirmations = 0
+
+            log(
+                "scheduling verified start id="
+                + (nowTrack ? nowTrack.id : 0)
+            )
+
+            trackStartTimer.start()
+        }
     }
 
     function mprisTrackId() {
@@ -195,8 +299,9 @@ Item {
     }
 
     Component.onCompleted: {
-        preferredQuality =
+        preferredQuality = normalizeQuality(
             backend.streamQualityPreference()
+        )
     }
 
     Backend {
@@ -410,6 +515,208 @@ Item {
         }
     }
 
+    Timer {
+        id: trackStartTimer
+
+        interval: 650
+        repeat: true
+        running: false
+
+        onTriggered: {
+            if (!playback.shouldPlay
+                    || !playback.playWhenResolved
+                    || !playback.nowTrack) {
+                playback.trackStartIssued = false
+                playback.trackStartAttempts = 0
+                playback.trackStartConfirmations = 0
+                stop()
+                return
+            }
+
+            if (!playback.trackStartIssued) {
+                playback.trackStartIssued = true
+                playback.trackStartAttempts = 1
+                playback.trackStartConfirmations = 0
+
+                playback.log(
+                    "verified start attempt 1 id="
+                    + playback.nowTrack.id
+                )
+
+                player.play()
+                return
+            }
+
+            if (player.playbackState
+                    === MediaPlayer.PlayingState) {
+                playback.trackStartConfirmations += 1
+
+                if (playback.trackStartConfirmations >= 2) {
+                    playback.log(
+                        "track start confirmed id="
+                        + playback.nowTrack.id
+                    )
+
+                    playback.shouldPlay = false
+                    playback.trackStartIssued = false
+                    playback.trackStartAttempts = 0
+                    playback.trackStartConfirmations = 0
+                    stop()
+                }
+
+                return
+            }
+
+            playback.trackStartConfirmations = 0
+            playback.trackStartAttempts += 1
+
+            if (playback.trackStartAttempts > 10) {
+                playback.log(
+                    "track start failed id="
+                    + playback.nowTrack.id
+                    + " state="
+                    + player.playbackState
+                    + " status="
+                    + player.status
+                )
+
+                playback.shouldPlay = false
+                playback.trackStartIssued = false
+                playback.trackStartAttempts = 0
+                playback.statusLine =
+                    "Could not start playback"
+                stop()
+                return
+            }
+
+            playback.log(
+                "verified start retry "
+                + playback.trackStartAttempts
+                + " id="
+                + playback.nowTrack.id
+                + " state="
+                + player.playbackState
+                + " status="
+                + player.status
+            )
+
+            player.play()
+        }
+    }
+
+    Timer {
+        id: resumeTimer
+
+        // Waiting avoids seeking before GStreamer has replaced the old
+        // internal stream collection. Repeating also lets us verify that the
+        // backend did not subsequently reset the position to zero.
+        interval: 650
+        repeat: true
+        running: false
+
+        onTriggered: {
+            if (!playback.resumePending) {
+                stop()
+                return
+            }
+
+            if (player.duration <= 0) {
+                playback.resumeAttempts += 1
+
+                if (playback.resumeAttempts >= 12) {
+                    playback.log(
+                        "resume failed: duration never became available"
+                    )
+
+                    playback.resumePending = false
+                    playback.resumePosition = -1
+                    stop()
+                }
+
+                return
+            }
+
+            var target = Math.max(
+                0,
+                Math.min(
+                    playback.resumePosition,
+                    player.duration
+                )
+            )
+
+            var difference =
+                Math.abs(player.position - target)
+
+            if (difference <= 1500) {
+                playback.resumeConfirmations += 1
+
+                // Require two confirmations on separate timer ticks. A seek
+                // can appear successful briefly and then be reset by
+                // GStreamer while the new stream is still being installed.
+                if (playback.resumeConfirmations >= 2) {
+                    playback.log(
+                        "resume confirmed at "
+                        + player.position
+                        + " ms (target "
+                        + target
+                        + " ms)"
+                    )
+
+                    playback.resumePending = false
+                    playback.resumePosition = -1
+                    playback.resumeAttempts = 0
+                    playback.resumeConfirmations = 0
+
+                    mpris.seeked(player.position)
+
+                    // Seeking a newly replaced GStreamer stream can leave
+                    // MediaPlayer paused. Restore the state that existed
+                    // before the quality change.
+                    if (playback.playWhenResolved) {
+                        playback.log(
+                            "continuing playback after confirmed resume"
+                        )
+                        playback.play()
+                    }
+
+                    stop()
+                }
+
+                return
+            }
+
+            playback.resumeConfirmations = 0
+            playback.resumeAttempts += 1
+
+            if (playback.resumeAttempts > 12) {
+                playback.log(
+                    "resume failed after retries; target="
+                    + target
+                    + " actual="
+                    + player.position
+                )
+
+                playback.resumePending = false
+                playback.resumePosition = -1
+                playback.resumeAttempts = 0
+                stop()
+                return
+            }
+
+            playback.log(
+                "resume attempt "
+                + playback.resumeAttempts
+                + " target="
+                + target
+                + " actual="
+                + player.position
+            )
+
+            player.seek(target)
+            mpris.seeked(target)
+        }
+    }
+
     MediaPlayer {
         id: player
         autoPlay: false
@@ -421,23 +728,14 @@ Item {
             playback.shouldPlay = false
         }
 
-        onStatusChanged: {
-            if (playback.shouldPlay
-                    && (status === MediaPlayer.Loaded
-                        || status === MediaPlayer.Buffered
-                        || status === MediaPlayer.Buffering)) {
-                playback.shouldPlay = false
+        onStatusChanged:
+            playback.finishPendingLoad()
 
-                playback.log(
-                    "play id="
-                    + (playback.nowTrack
-                       ? playback.nowTrack.id
-                       : 0)
-                )
+        onSeekableChanged:
+            playback.finishPendingLoad()
 
-                playback.play()
-            }
-        }
+        onDurationChanged:
+            playback.finishPendingLoad()
 
         onStopped: {
             if (status === MediaPlayer.EndOfMedia) {
