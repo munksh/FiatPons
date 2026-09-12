@@ -34,6 +34,7 @@ OTHER_FILES += \
     qml/sections/DiscoverSection.qml \
     qml/pages/QueuePage.qml \
     qml/pages/SettingsPage.qml \
+    qml/pages/AboutPage.qml \
     qml/pages/AlbumPage.qml \
     qml/pages/ArtistPage.qml \
     qml/pages/FavouritesPage.qml \
@@ -74,6 +75,7 @@ DISTFILES += \
     qml/sections/DiscoverSection.qml \
     qml/pages/QueuePage.qml \
     qml/pages/SettingsPage.qml \
+    qml/pages/AboutPage.qml \
     qml/pages/AlbumPage.qml \
     qml/pages/ArtistPage.qml \
     qml/pages/FavouritesPage.qml \
