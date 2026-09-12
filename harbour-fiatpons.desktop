@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
 Icon=harbour-fiatpons
-Name=Fiat Pons
+Name=fiat pons
 Exec=/usr/bin/sailjail -p harbour-fiatpons.desktop /usr/bin/harbour-fiatpons
 
 [X-Sailjail]
-Permissions=Internet
+Permissions=Internet;Audio
 OrganizationName=se.munkstolen
 ApplicationName=harbour-fiatpons
