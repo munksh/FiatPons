@@ -15,7 +15,7 @@
 
 Name:       harbour-fiatpons
 Summary:    Fiat Pons
-Version:    0.2
+Version:    0.3
 Release:    1
 License:    MIT
 URL:        https://github.com/munksh/FiatPons
@@ -68,6 +68,14 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/172x172/apps/%{name}.png
 
 %changelog
+* Sat Sep 12 2026 Caesar <caesar@munkstolen.se> - 0.3-1
+- Add MP3, CD, Hi-Res and Hi-Res Max quality options
+- Show the audio quality actually delivered by the stream
+- Preserve playback position and play/pause state when changing quality
+- Improve track switching and asynchronous GStreamer stream changes
+- Add Sailjail audio permission
+- Fix initial album cover handling
+
 * Fri Sep 11 2026 Caesar <caesar@munkstolen.se> - 0.2-1
 - Add MPRIS integration for lock-screen and remote media controls
 
