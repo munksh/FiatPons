@@ -11,11 +11,12 @@ import ".."
 Page {
     id: page
     property string albumId: ""
+    property string initialCover: ""
 
     property string title: ""
     property string albumArtist: ""
     property string artistId: ""     // not returned by fp_album yet -- see note below
-    property string coverUrl: ""
+    property string coverUrl: initialCover
     property string year: ""
     property int trackCount: 0
     property int durationSecs: 0
