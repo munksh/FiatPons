@@ -19,7 +19,7 @@ QtObject {
 
     readonly property color primaryText:   ambient ? Theme.primaryColor   : "#1A1A1A"
     readonly property color secondaryText: ambient ? Theme.secondaryColor : Qt.rgba(0.10, 0.10, 0.10, 0.55)
-    readonly property color accent:        ambient ? Theme.highlightColor : "#417B84"
+    readonly property color accent:        ambient ? Theme.highlightColor : "#4165BA"
 
     readonly property color backgroundHigh: "#F2EFE8"
     readonly property color backgroundLow:  "#D8D2C6"

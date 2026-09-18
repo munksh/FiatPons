@@ -55,3 +55,7 @@ rust/target/
 # Python
 __pycache__/
 *.pyc
+/full-dump.txt
+/credits-context.txt
+/credits-model-context.txt
+/openrepos-audit.txt

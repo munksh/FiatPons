@@ -13,7 +13,7 @@ ApplicationWindow {
     Playback { id: thePlayback; queue: theQueue }
 
     initialPage: Component { MainPage { } }
-    cover: Qt.resolvedUrl("cover/FiatPonsCover.qml")
+    cover: Qt.resolvedUrl("cover/CoverPage.qml")
     allowedOrientations: defaultAllowedOrientations
     Component.onCompleted: FiatPonsTheme.applyPalette(app)
     Connections {

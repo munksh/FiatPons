@@ -11,7 +11,6 @@ CoverBackground {
     readonly property string title: track ? track.title : ""
     readonly property string artist: track ? track.artist : ""
 
-    // Fiat background (only when not following ambience).
     Rectangle {
         anchors.fill: parent
         visible: !FiatPonsTheme.ambient
@@ -21,22 +20,34 @@ CoverBackground {
         }
     }
 
+    Label {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: FiatPonsTheme.coverWordmarkTop
+        text: "fiat pons"
+        color: FiatPonsTheme.secondaryText
+        font.pixelSize: Theme.fontSizeTiny
+        font.family: FiatPonsTheme.serif
+        font.italic: true
+    }
+
     Column {
-        anchors {
-            top: parent.top; left: parent.left; right: parent.right
-            topMargin: Theme.paddingLarge
-            leftMargin: Theme.paddingMedium
-            rightMargin: Theme.paddingMedium
-        }
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.leftMargin: FiatPonsTheme.coverSideMargin
+        anchors.rightMargin: FiatPonsTheme.coverSideMargin
+        anchors.topMargin: cover.height * FiatPonsTheme.coverFigureFractionShape
         spacing: Theme.paddingMedium
 
-        // ---- Rounded album art ----
         Item {
-            width: parent.width
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: cover.width * FiatPonsTheme.coverArtFraction
             height: width
 
             Rectangle { id: mask; anchors.fill: parent; radius: Theme.paddingLarge; visible: false }
             Rectangle { anchors.fill: parent; radius: Theme.paddingLarge; color: FiatPonsTheme.recessFill }
+
             Image {
                 id: art
                 anchors.fill: parent
@@ -61,29 +72,31 @@ CoverBackground {
             }
             Label {
                 anchors.centerIn: parent
-                text: "\u266B"
+                text: "♫"
                 color: FiatPonsTheme.secondaryText
-                font.pixelSize: Theme.fontSizeHuge
+                font.pixelSize: FiatPonsTheme.coverFigureSize
                 font.family: FiatPonsTheme.serif
                 visible: cover.coverUrl.length === 0
             }
         }
 
-        // ---- Title / artist ----
         Label {
             width: parent.width
-            text: cover.title.length > 0 ? cover.title : "fiat pons"
-            color: FiatPonsTheme.primaryText
+            horizontalAlignment: Text.AlignHCenter
+            text: cover.title.length > 0 ? cover.title : qsTr("nothing playing")
+            color: FiatPonsTheme.accent
             font.pixelSize: Theme.fontSizeSmall
             font.family: FiatPonsTheme.serif
             font.italic: cover.title.length === 0
             truncationMode: TruncationMode.Fade
             maximumLineCount: 1
         }
+
         Label {
             width: parent.width
+            horizontalAlignment: Text.AlignHCenter
             text: cover.artist
-            color: FiatPonsTheme.secondaryText
+            color: Theme.rgba(FiatPonsTheme.accent, 0.75)
             font.pixelSize: Theme.fontSizeExtraSmall
             truncationMode: TruncationMode.Fade
             maximumLineCount: 1
@@ -91,12 +104,13 @@ CoverBackground {
         }
     }
 
-    // ---- One play/pause cover action ----
     CoverActionList {
         id: actions
+
         CoverAction {
             iconSource: app.playback.playing
-                ? "image://theme/icon-cover-pause" : "image://theme/icon-cover-play"
+                        ? "image://theme/icon-cover-pause"
+                        : "image://theme/icon-cover-play"
             onTriggered: app.playback.toggle()
         }
     }

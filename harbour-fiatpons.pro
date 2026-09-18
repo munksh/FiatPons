@@ -47,7 +47,7 @@ OTHER_FILES += \
     qml/components/EmptyNote.qml \
     qml/components/ArtistPortrait.qml \
     qml/components/AlbumPreview.qml \
-    qml/cover/FiatPonsCover.qml \
+    qml/cover/CoverPage.qml \
     harbour-fiatpons.desktop \
     rpm/harbour-fiatpons.spec
 
@@ -57,7 +57,7 @@ REQUIRED_FILES = \
     qml/MainPage.qml \
     qml/qmldir \
     qml/FiatPonsTheme.qml \
-    qml/cover/FiatPonsCover.qml
+    qml/cover/CoverPage.qml
 for(f, REQUIRED_FILES) {
     !exists($$PWD/$$f): error("Missing $$f -- expected it at $$PWD/$$f")
 }
@@ -86,7 +86,7 @@ DISTFILES += \
     qml/components/PageHead.qml \
     qml/components/EmptyNote.qml \
     qml/components/ArtistPortrait.qml \
-    qml/cover/FiatPonsCover.qml \
+    qml/cover/CoverPage.qml \
     harbour-fiatpons.desktop \
     rpm/harbour-fiatpons.spec
 
