@@ -15,7 +15,7 @@
 
 Name:       harbour-fiatpons
 Summary:    Fiat Pons
-Version:    0.3
+Version:    1.0
 Release:    1
 License:    MIT
 URL:        https://github.com/munksh/FiatPons
@@ -45,7 +45,7 @@ of talking to Qobuz's API.
 %setup -q -n %{name}-%{version}
 
 %build
-%qmake5
+%qmake5 APP_VERSION=%{version}
 make %{?_smp_mflags}
 
 %install
