@@ -21,6 +21,11 @@ rustlib.path = $$[QT_INSTALL_LIBS]
 INSTALLS += rustlib
 # ---- end Rust FFI ----
 
+isEmpty(APP_VERSION) {
+    APP_VERSION = 0.0.0-dev
+}
+DEFINES += APP_VERSION=\\\"$$APP_VERSION\\\"
+
 OTHER_FILES += \
     qml/harbour-fiatpons.qml \
     qml/MainPage.qml \
@@ -47,6 +52,8 @@ OTHER_FILES += \
     qml/components/EmptyNote.qml \
     qml/components/ArtistPortrait.qml \
     qml/components/AlbumPreview.qml \
+    qml/components/SectionLabel.qml \
+    qml/components/MunkstolenMark.qml \
     qml/cover/CoverPage.qml \
     harbour-fiatpons.desktop \
     rpm/harbour-fiatpons.spec

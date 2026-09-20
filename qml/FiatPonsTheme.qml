@@ -21,6 +21,23 @@ QtObject {
     readonly property color secondaryText: ambient ? Theme.secondaryColor : Qt.rgba(0.10, 0.10, 0.10, 0.55)
     readonly property color accent:        ambient ? Theme.highlightColor : "#4165BA"
 
+    function mixColor(a, b, t) {
+        return Qt.rgba(
+            a.r * (1.0 - t) + b.r * t,
+            a.g * (1.0 - t) + b.g * t,
+            a.b * (1.0 - t) + b.b * t,
+            1.0
+        )
+    }
+
+    // A muted variant of the accent, for the Silica chrome that draws with
+    // palette.highlightColor directly -- the pull-down menu's revealed label
+    // chief among them. Found on Fiat Mos: a saturated accent used raw there
+    // reads far louder as a large glowing fill than it does as a button or a
+    // mark. This mutes only that role; everything the app draws itself still
+    // uses the full accent above.
+    readonly property color chromeAccent: mixColor(accent, primaryText, 0.35)
+
     readonly property color backgroundHigh: "#F2EFE8"
     readonly property color backgroundLow:  "#D8D2C6"
 
@@ -42,6 +59,13 @@ QtObject {
 
     // No semantic colours: nothing in a player is a verdict rather than a state.
     // Errors (e.g. a failed stream) use accent + wording, not a dedicated red.
+
+    // The wash under a pressed row or menu item.
+    readonly property color highlightWash: Theme.rgba(accent, 0.15)
+
+    // Taupe, and fixed: Munkstolen's colour, not the app's, so it does not
+    // follow the ambience.
+    readonly property color makerMark: "#7E7566"
 
     // ---- header notch handling ----
     function cutoutHeight() {
@@ -69,11 +93,30 @@ QtObject {
         try { p.colorScheme = ambient ? Theme.colorScheme : Theme.DarkOnLight } catch (e) { }
         try { p.primaryColor = primaryText } catch (e) { }
         try { p.secondaryColor = secondaryText } catch (e) { }
-        try { p.highlightColor = accent } catch (e) { }
-        try { p.secondaryHighlightColor = Theme.rgba(accent, 0.6) } catch (e) { }
+        try { p.highlightColor = chromeAccent } catch (e) { }
+        try { p.secondaryHighlightColor = Theme.rgba(chromeAccent, 0.6) } catch (e) { }
+        // A neutral wash for in-app selection/highlight surfaces. NOT the
+        // virtual keyboard -- that turned out to be a separate surface
+        // (Maliit/FutoKeyboard) that reads Theme.*, the system ambience,
+        // directly. It cannot be reached from an app's palette at all, so
+        // this project does not try; it follows the ambience.
         try { p.highlightBackgroundColor = Theme.rgba(primaryText, 0.12) } catch (e) { }
         try { p.errorColor = "#8A2B25" } catch (e) { }
         try { p.highlightDimmerColor = ambient ? Theme.highlightDimmerColor : backgroundLow } catch (e) { }
         try { p.overlayBackgroundColor = ambient ? Theme.overlayBackgroundColor : backgroundHigh } catch (e) { }
     }
+
+    // Cover layout
+    //
+    // The whole block was missing — CoverPage.qml already read all five of
+    // these, so it was running on undefined. This alone would give Pons the
+    // same "strange cover" as Margo/Cor/Glossa, not the "won't start" you
+    // reported; something else is layered on top (see the note below, and
+    // the request for the actual build/run output).
+    readonly property real coverWordmarkTop: Theme.paddingLarge
+    readonly property real coverSideMargin: Theme.paddingLarge
+    // Pons's figure is the album art, a shape, not a line of text.
+    readonly property real coverFigureFractionShape: 0.20
+    readonly property real coverArtFraction: 0.5
+    readonly property int coverFigureSize: Theme.fontSizeHuge
 }
