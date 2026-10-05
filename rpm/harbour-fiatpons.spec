@@ -41,6 +41,28 @@ subscription; log in from Settings.
 Built on the qbz-qobuz Rust library (MIT), which does the heavy lifting
 of talking to Qobuz's API.
 
+%if 0%{?_chum}
+Title: Fiat Pons
+Type: desktop-application
+DeveloperName: Munkstolen
+Categories:
+ - AudioVideo
+ - Audio
+PackageIcon: https://munkstolen.se/SFOS/harbour-fiatpons.png
+Screenshots:
+ - https://munkstolen.se/SFOS/fiatpons1.png
+ - https://munkstolen.se/SFOS/fiatpons2.png
+ - https://munkstolen.se/SFOS/fiatpons3.png
+ - https://munkstolen.se/SFOS/fiatpons4.png
+ - https://munkstolen.se/SFOS/fiatpons5.png
+ - https://munkstolen.se/SFOS/fiatpons6.png
+Custom:
+  Repo: https://github.com/munksh/FiatPons
+Links:
+  Homepage: https://github.com/munksh/FiatPons
+  Bugtracker: https://github.com/munksh/FiatPons/issues
+%endif
+
 %prep
 %setup -q -n %{name}-%{version}
 
