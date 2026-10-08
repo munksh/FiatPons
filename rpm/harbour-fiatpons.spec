@@ -48,6 +48,8 @@ DeveloperName: Munkstolen
 Categories:
  - AudioVideo
  - Audio
+AIRating: V
+AINote: Claude is my typist - I cross review with Mistral, and add the code once it looks good. Architecture, design, on-device testing, releases and maintenance by me; issues and input welcome.
 PackageIcon: https://munkstolen.se/SFOS/harbour-fiatpons.png
 Screenshots:
  - https://munkstolen.se/SFOS/fiatpons1.png
