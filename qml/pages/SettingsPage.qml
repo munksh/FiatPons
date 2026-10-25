@@ -163,6 +163,16 @@ Page {
                 }
             }
 
+            TextSwitch {
+                text: "Autoplay"
+                description:
+                    "When you start a track, queue the remaining tracks " +
+                    "of that album or playlist after it"
+                automaticCheck: false
+                checked: app.playback.autoQueue
+                onClicked: app.playback.setAutoQueue(!app.playback.autoQueue)
+            }
+
             SectionHeader { text: "" }
             BackgroundItem {
                 width: parent.width

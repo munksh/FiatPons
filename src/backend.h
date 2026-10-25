@@ -4,6 +4,12 @@
 #include <QObject>
 #include <QThread>
 #include <QString>
+#include <QStringList>
+#include <QMap>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
 #include <QSettings>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
@@ -562,6 +568,88 @@ Q_INVOKABLE QString streamQualityPreference() const {
         );
 
         settings.sync();
+    }
+
+    // Autoplay: when the user starts a track on the album or playlist
+    // page, queue the remaining tracks of that list after it.
+    // Off by default (stock single-track behaviour).
+    //
+    // Persistence note (verified on the phone, SFOS 5.2): the sailjail
+    // sandbox gives the app an ephemeral tmpfs for ~, bind-mounting only
+    // the app's own per-app dirs (~/.config/<org>/<app>/, ...
+    // share/<org>/<app>/) back to the real home. Plain QSettings files
+    // (~/.config/<org>/<app>.conf) are NOT among them, so QSettings is
+    // lost on every app restart here. The setting therefore lives in a
+    // small key=value file inside the app's config dir, which is the
+    // bind-mounted (persistent) location.
+    static QString appSettingsFile() {
+        return QDir(
+            QDir::homePath()
+            + "/.config/se.munkstolen/harbour-fiatpons"
+        ).absoluteFilePath("settings.conf");
+    }
+
+    Q_INVOKABLE bool autoQueueEnabled() const {
+        QFile file(appSettingsFile());
+
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            return false;
+
+        QTextStream in(&file);
+
+        while (!in.atEnd()) {
+            const QStringList kv = in.readLine().split('=');
+
+            if (kv.size() == 2 && kv.at(0).trimmed() == "autoQueue")
+                return kv.at(1).trimmed() == "true";
+        }
+
+        return false;
+    }
+
+    Q_INVOKABLE void setAutoQueueEnabled(bool enabled) {
+        if (!QDir().mkpath(
+                QFileInfo(appSettingsFile()).absolutePath()))
+            return;
+
+        // Keep any other keys the file may already carry.
+        QMap<QString, QString> values;
+
+        {
+            QFile file(appSettingsFile());
+
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&file);
+
+                while (!in.atEnd()) {
+                    const QStringList kv = in.readLine().split('=');
+
+                    if (kv.size() == 2)
+                        values.insert(
+                            kv.at(0).trimmed(),
+                            kv.at(1).trimmed()
+                        );
+                }
+            }
+        }
+
+        values.insert("autoQueue", enabled ? "true" : "false");
+
+        QFile file(appSettingsFile());
+
+        if (!file.open(
+                QIODevice::WriteOnly
+                | QIODevice::Text
+                | QIODevice::Truncate))
+            return;
+
+        QTextStream out(&file);
+        const QStringList keys = values.keys();
+
+        for (int i = 0; i < keys.size(); ++i)
+            out << keys.at(i) << '=' << values.value(keys.at(i)) << '\n';
+
+        file.flush();
     }
 
     Q_INVOKABLE void search(const QString &query)        { emit requestSearch(query); }

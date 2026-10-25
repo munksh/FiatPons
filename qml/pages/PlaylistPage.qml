@@ -536,10 +536,18 @@ Page {
                     anchors.centerIn: parent
                     visible: !page.editMode
 
-                    icon.source: "image://theme/icon-l-play"
+                    icon.source: app.playback.playing
+                        ? "image://theme/icon-l-pause" : "image://theme/icon-l-play"
                     icon.color: FiatPonsTheme.primaryText
                     enabled: tracksModel.count > 0
-                    onClicked: page.playAll()
+                    onClicked: {
+                        if (app.playback.nowTrack !== null
+                                && !app.playback.explicitlyStopped) {
+                            app.playback.toggle()
+                        } else {
+                            page.playAll()
+                        }
+                    }
                 }
             }
 
@@ -562,9 +570,20 @@ Page {
                 return page.rowToTrack(model)
             }
 
+            function tracksAfter() {
+                var rest = []
+                for (var i = index + 1; i < tracksModel.count; i++)
+                    rest.push(page.rowToTrack(tracksModel.get(i)))
+                return rest
+            }
+
             onClicked: {
-                if (!page.editMode)
-                    app.queue.playNow(trackObj())
+                if (!page.editMode) {
+                    // Autoplay off (default): stock single-track play.
+                    // Autoplay on: play the tapped track and queue the rest.
+                    var rest = app.playback.autoQueue ? tracksAfter() : []
+                    app.queue.playNowRange(trackObj(), rest)
+                }
             }
 
             menu: page.editMode ? null : trackMenu

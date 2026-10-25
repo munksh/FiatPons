@@ -18,6 +18,9 @@ Item {
     property string statusLine: ""
     property string quality: ""
     property string preferredQuality: "lossless"
+    // Autoplay: starting a track on the album/playlist page also queues the
+    // rest of that list after it. Off by default (stock behaviour).
+    property bool autoQueue: false
     property bool playWhenResolved: true
     property bool shuffle: false
     property int repeatMode: 0
@@ -65,6 +68,16 @@ Item {
             return "Hi-Res Max (up to 24/192)"
 
         return "CD (FLAC 16/44.1)"
+    }
+
+    function setAutoQueue(on) {
+        on = on === true
+
+        if (autoQueue === on)
+            return
+
+        autoQueue = on
+        backend.setAutoQueueEnabled(on)
     }
 
     function setPreferredQuality(value) {
@@ -302,6 +315,8 @@ Item {
         preferredQuality = normalizeQuality(
             backend.streamQualityPreference()
         )
+
+        autoQueue = backend.autoQueueEnabled()
     }
 
     Backend {

@@ -28,6 +28,18 @@ Item {
     }
 
     function playNow(t)  { model.clear(); model.append(copy(t)); currentIndex = 0; currentChanged() }
+
+    // Play t now, queueing the rest of the given list after it.
+    function playNowRange(t, rest) {
+        model.clear()
+        model.append(copy(t))
+        if (rest) {
+            for (var i = 0; i < rest.length; i++)
+                model.append(copy(rest[i]))
+        }
+        currentIndex = 0
+        currentChanged()
+    }
     function enqueue(t)  { model.append(copy(t)); if (currentIndex < 0) { currentIndex = 0; currentChanged() } }
     function playNext(t) {
         if (currentIndex < 0) { model.append(copy(t)); currentIndex = 0; currentChanged() }

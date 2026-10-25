@@ -287,16 +287,22 @@ Page {
                 opacity: enabled ? 1.0 : 0.4
                 Icon {
                     anchors.centerIn: parent
-                    source: "image://theme/icon-l-play"
+                    source: app.playback.playing
+                        ? "image://theme/icon-l-pause" : "image://theme/icon-l-play"
                     color: FiatPonsTheme.accent
                 }
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
                         if (tracksModel.count === 0) return
-                        app.queue.playNow(page.rowToTrack(tracksModel.get(0)))
-                        for (var i = 1; i < tracksModel.count; i++)
-                            app.queue.enqueue(page.rowToTrack(tracksModel.get(i)))
+                        if (app.playback.nowTrack !== null
+                                && !app.playback.explicitlyStopped) {
+                            app.playback.toggle()
+                        } else {
+                            app.queue.playNow(page.rowToTrack(tracksModel.get(0)))
+                            for (var i = 1; i < tracksModel.count; i++)
+                                app.queue.enqueue(page.rowToTrack(tracksModel.get(i)))
+                        }
                     }
                 }
             }
@@ -348,7 +354,19 @@ Page {
 
             function trackObj() { return page.rowToTrack(model) }
 
-            onClicked: app.queue.playNow(trackObj())
+            function tracksAfter() {
+                var rest = []
+                for (var i = index + 1; i < tracksModel.count; i++)
+                    rest.push(page.rowToTrack(tracksModel.get(i)))
+                return rest
+            }
+
+            onClicked: {
+                // Autoplay off (default): stock single-track play.
+                // Autoplay on: play the tapped track and queue the rest.
+                var rest = app.playback.autoQueue ? tracksAfter() : []
+                app.queue.playNowRange(trackObj(), rest)
+            }
 
             menu: ContextMenu {
                 MenuItem { text: "Play now";     onClicked: app.queue.playNow(delegateItem.trackObj()) }
