@@ -4,7 +4,12 @@
 #include <QObject>
 #include <QThread>
 #include <QString>
-#include <QSettings>
+#include <QStringList>
+#include <QMap>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
 #include <QtNetwork/QHostAddress>
@@ -520,16 +525,11 @@ public:
         m_thread.wait();
     }
 
-Q_INVOKABLE QString streamQualityPreference() const {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
-        QString value = settings.value(
-            "playback/streamQuality",
+    Q_INVOKABLE QString streamQualityPreference() const {
+        const QString value = settingRead(
+            "streamQuality",
             "lossless"
-        ).toString();
+        );
 
         if (value == "mp3"
                 || value == "lossless"
@@ -543,11 +543,6 @@ Q_INVOKABLE QString streamQualityPreference() const {
     Q_INVOKABLE void setStreamQualityPreference(
         const QString &quality
     ) {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
         QString value = quality;
 
         if (value != "mp3"
@@ -556,12 +551,84 @@ Q_INVOKABLE QString streamQualityPreference() const {
                 && value != "ultrahires")
             value = "lossless";
 
-        settings.setValue(
-            "playback/streamQuality",
-            value
-        );
+        settingWrite("streamQuality", value);
+    }
 
-        settings.sync();
+    // Persistence for app settings.
+    //
+    // The sailjail sandbox gives the app an ephemeral tmpfs for ~,
+    // bind-mounting only the app's own per-app dirs
+    // (~/.config/<org>/<app>/, .../share/<org>/<app>/) back to the real
+    // home. Plain QSettings files (~/.config/<org>/<app>.conf) are NOT
+    // among them, so QSettings is lost on every app restart. Settings
+    // therefore live in a small key=value file inside the app's config
+    // dir, which is the bind-mounted (persistent) location.
+    static QString appSettingsFile() {
+        return QDir(
+            QDir::homePath()
+            + "/.config/se.munkstolen/harbour-fiatpons"
+        ).absoluteFilePath("settings.conf");
+    }
+
+    // Read one key from the app's persistent settings file.
+    // Returns fallback when the file or key is absent.
+    static QString settingRead(const QString &key, const QString &fallback) {
+        QFile file(appSettingsFile());
+
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            return fallback;
+
+        QTextStream in(&file);
+
+        while (!in.atEnd()) {
+            const QStringList kv = in.readLine().split('=');
+
+            if (kv.size() == 2 && kv.at(0).trimmed() == key)
+                return kv.at(1).trimmed();
+        }
+
+        return fallback;
+    }
+
+    // Write one key, preserving any other keys already in the file.
+    static void settingWrite(const QString &key, const QString &value) {
+        if (!QDir().mkpath(QFileInfo(appSettingsFile()).absolutePath()))
+            return;
+
+        QMap<QString, QString> values;
+
+        {
+            QFile file(appSettingsFile());
+
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&file);
+
+                while (!in.atEnd()) {
+                    const QStringList kv = in.readLine().split('=');
+
+                    if (kv.size() == 2)
+                        values.insert(kv.at(0).trimmed(), kv.at(1).trimmed());
+                }
+            }
+        }
+
+        values.insert(key, value);
+
+        QFile file(appSettingsFile());
+
+        if (!file.open(
+                QIODevice::WriteOnly
+                | QIODevice::Text
+                | QIODevice::Truncate))
+            return;
+
+        QTextStream out(&file);
+        const QStringList keys = values.keys();
+
+        for (int i = 0; i < keys.size(); ++i)
+            out << keys.at(i) << '=' << values.value(keys.at(i)) << '\n';
+
+        file.flush();
     }
 
     Q_INVOKABLE void search(const QString &query)        { emit requestSearch(query); }
