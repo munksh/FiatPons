@@ -83,6 +83,27 @@ Item {
         }
     }
 
+    // True when the track now loaded is one of the favourite tracks.
+    readonly property bool ownsNowTrack: {
+        var now = app.playback.nowTrack
+        if (!now || favouriteMode !== "tracks" || favouritesModel.count === 0)
+            return false
+        for (var i = 0; i < favouritesModel.count; i++)
+            if (String(favouritesModel.get(i).id) === String(now.id))
+                return true
+        return false
+    }
+    readonly property bool listPlaying: ownsNowTrack && app.playback.playing
+
+    function playOrToggle() {
+        if (favouriteMode !== "tracks" || favouritesModel.count === 0)
+            return
+        if (ownsNowTrack && !app.playback.explicitlyStopped)
+            app.playback.toggle()
+        else
+            app.queue.playFrom(favouritesModel, 0, trackObjectFromModel)
+    }
+
     function newPlaylist() {
         pageStack.push(
             Qt.resolvedUrl("../pages/NewPlaylistDialog.qml"),
@@ -377,6 +398,40 @@ Item {
                 }
             }
 
+            header: Item {
+                width: favouritesList.width
+                height: section.favouriteMode === "tracks"
+                        ? playButton.height + Theme.paddingLarge * 2
+                        : 0
+                visible: height > 0
+
+                Rectangle {
+                    id: playButton
+                    anchors.centerIn: parent
+                    width: Theme.itemSizeLarge
+                    height: width
+                    radius: width / 2
+                    color: FiatPonsTheme.pillFillActive
+                    border.color: FiatPonsTheme.pillBorderActive
+                    border.width: 1
+                    enabled: favouritesModel.count > 0
+                    opacity: enabled ? 1.0 : 0.4
+
+                    Icon {
+                        anchors.centerIn: parent
+                        source: section.listPlaying
+                                ? "image://theme/icon-l-pause"
+                                : "image://theme/icon-l-play"
+                        color: FiatPonsTheme.accent
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: section.playOrToggle()
+                    }
+                }
+            }
+
             delegate: ListItem {
                 id: favRow
 
@@ -395,7 +450,7 @@ Item {
 
                 onClicked: {
                     if (section.favouriteMode === "tracks") {
-                        app.queue.playNow(trackObj())
+                        app.queue.playFrom(favouritesModel, index, section.trackObjectFromModel)
                     } else {
                         pageStack.push(Qt.resolvedUrl("../pages/AlbumPage.qml"), {
                             albumId: String(model.id),

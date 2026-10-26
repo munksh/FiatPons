@@ -28,6 +28,18 @@ Item {
     }
 
     function playNow(t)  { model.clear(); model.append(copy(t)); currentIndex = 0; currentChanged() }
+
+    // Replaces the queue with rows[index..end] of a page's list and plays the
+    // first. toTrack maps a model row to a track object.
+    function playFrom(rows, index, toTrack) {
+        if (index < 0 || index >= rows.count)
+            return
+        model.clear()
+        for (var i = index; i < rows.count; i++)
+            model.append(copy(toTrack(rows.get(i))))
+        currentIndex = 0
+        currentChanged()
+    }
     function enqueue(t)  { model.append(copy(t)); if (currentIndex < 0) { currentIndex = 0; currentChanged() } }
     function playNext(t) {
         if (currentIndex < 0) { model.append(copy(t)); currentIndex = 0; currentChanged() }

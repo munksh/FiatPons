@@ -87,18 +87,29 @@ Page {
         }
     }
 
-    function playAll() {
+    // True when the track now loaded belongs to this playlist.
+    readonly property bool ownsNowTrack: {
+        var now = app.playback.nowTrack
+        if (!now || tracksModel.count === 0)
+            return false
+        for (var i = 0; i < tracksModel.count; i++)
+            if (String(tracksModel.get(i).id) === String(now.id))
+                return true
+        return false
+    }
+    readonly property bool listPlaying: ownsNowTrack && app.playback.playing
+
+    function playOrToggle() {
         if (tracksModel.count === 0)
             return
+        if (ownsNowTrack && !app.playback.explicitlyStopped)
+            app.playback.toggle()
+        else
+            playAll()
+    }
 
-        app.queue.playNow(
-            rowToTrack(tracksModel.get(0))
-        )
-
-        for (var i = 1; i < tracksModel.count; i++)
-            app.queue.enqueue(
-                rowToTrack(tracksModel.get(i))
-            )
+    function playAll() {
+        app.queue.playFrom(tracksModel, 0, rowToTrack)
     }
 
     function beginEdit() {
@@ -536,10 +547,12 @@ Page {
                     anchors.centerIn: parent
                     visible: !page.editMode
 
-                    icon.source: "image://theme/icon-l-play"
+                    icon.source: page.listPlaying
+                                 ? "image://theme/icon-l-pause"
+                                 : "image://theme/icon-l-play"
                     icon.color: FiatPonsTheme.primaryText
                     enabled: tracksModel.count > 0
-                    onClicked: page.playAll()
+                    onClicked: page.playOrToggle()
                 }
             }
 
@@ -564,7 +577,7 @@ Page {
 
             onClicked: {
                 if (!page.editMode)
-                    app.queue.playNow(trackObj())
+                    app.queue.playFrom(tracksModel, index, page.rowToTrack)
             }
 
             menu: page.editMode ? null : trackMenu

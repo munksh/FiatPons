@@ -28,6 +28,27 @@ Page {
 
     property bool componentReady: false
 
+    // True when the track now loaded belongs to this album.
+    readonly property bool ownsNowTrack: {
+        var now = app.playback.nowTrack
+        if (!now || tracksModel.count === 0)
+            return false
+        for (var i = 0; i < tracksModel.count; i++)
+            if (String(tracksModel.get(i).id) === String(now.id))
+                return true
+        return false
+    }
+    readonly property bool listPlaying: ownsNowTrack && app.playback.playing
+
+    function playOrToggle() {
+        if (tracksModel.count === 0)
+            return
+        if (ownsNowTrack && !app.playback.explicitlyStopped)
+            app.playback.toggle()
+        else
+            app.queue.playFrom(tracksModel, 0, rowToTrack)
+    }
+
     function paint() {
         FiatPonsTheme.applyPalette(page)
     }
@@ -287,17 +308,14 @@ Page {
                 opacity: enabled ? 1.0 : 0.4
                 Icon {
                     anchors.centerIn: parent
-                    source: "image://theme/icon-l-play"
+                    source: page.listPlaying
+                            ? "image://theme/icon-l-pause"
+                            : "image://theme/icon-l-play"
                     color: FiatPonsTheme.accent
                 }
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: {
-                        if (tracksModel.count === 0) return
-                        app.queue.playNow(page.rowToTrack(tracksModel.get(0)))
-                        for (var i = 1; i < tracksModel.count; i++)
-                            app.queue.enqueue(page.rowToTrack(tracksModel.get(i)))
-                    }
+                    onClicked: page.playOrToggle()
                 }
             }
 
@@ -348,7 +366,7 @@ Page {
 
             function trackObj() { return page.rowToTrack(model) }
 
-            onClicked: app.queue.playNow(trackObj())
+            onClicked: app.queue.playFrom(tracksModel, index, page.rowToTrack)
 
             menu: ContextMenu {
                 MenuItem { text: "Play now";     onClicked: app.queue.playNow(delegateItem.trackObj()) }

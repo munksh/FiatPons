@@ -1,8 +1,9 @@
 [Desktop Entry]
 Type=Application
+X-Nemo-Application-Type=silica-qt5
 Icon=harbour-fiatpons
 Name=fiat pons
-Exec=/usr/bin/sailjail -p harbour-fiatpons.desktop /usr/bin/harbour-fiatpons
+Exec=harbour-fiatpons
 
 [X-Sailjail]
 Permissions=Internet;Audio

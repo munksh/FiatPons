@@ -1,21 +1,16 @@
 # fiat pons — an unofficial Qobuz client for Sailfish OS.
 #
-# The Rust playback core (libfiatpons_ffi.so) is built SEPARATELY via
-# build-rust.sh before packaging, and shipped as a prebuilt binary inside the
-# source tarball -- this spec does NOT invoke cargo. A generic RPM build
-# environment has no aarch64 Rust cross-toolchain configured (the toolchain
-# setup that produces that .so is a whole SDK-side procedure of its own; see
-# build-rust.sh and the project README). This mirrors how most OpenRepos
-# packages with compiled dependencies are done.
-#
-# Before building a release tarball, always run:
-#   ./build-rust.sh
-# so rust/target/aarch64-unknown-linux-gnu/release/libfiatpons_ffi.so exists
-# and is current, THEN create the tarball (see tools/make-tarball.sh).
+# The Rust core, libfiatpons_ffi.so, is built by build-rust.sh before
+# packaging. This spec does not run cargo.
+
+# The Rust library is private to the app: neither provided nor required
+# system-wide (Harbour rule).
+%define __provides_exclude_from ^%{_datadir}/.*$
+%define __requires_exclude ^libfiatpons_ffi.*$
 
 Name:       harbour-fiatpons
 Summary:    Fiat Pons
-Version:    1.0
+Version:    1.1
 Release:    1
 License:    MIT
 URL:        https://github.com/munksh/FiatPons
@@ -76,6 +71,8 @@ make %{?_smp_mflags}
 rm -rf %{buildroot}
 make install INSTALL_ROOT=%{buildroot}
 
+chmod 644 %{buildroot}%{_datadir}/%{name}/lib/libfiatpons_ffi.so
+
 desktop-file-install --delete-original \
   --dir %{buildroot}%{_datadir}/applications \
   %{buildroot}%{_datadir}/applications/*.desktop
@@ -83,7 +80,6 @@ desktop-file-install --delete-original \
 %files
 %defattr(-,root,root,-)
 %{_bindir}/%{name}
-%{_libdir}/libfiatpons_ffi.so
 %{_datadir}/%{name}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/86x86/apps/%{name}.png
@@ -92,6 +88,15 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/172x172/apps/%{name}.png
 
 %changelog
+* Mon Oct 26 2026 Caesar <caesar@munkstolen.se> - 1.1-1
+- Tapping a track plays it and queues the rest of the list; the context
+  menu's Play now still plays a single track
+- Play button on albums, playlists and favourite tracks shows pause while
+  that list is playing
+- Streaming quality is remembered between restarts
+- Ready for the Jolla Store: private library location, plain launcher Exec
+- Thanks to ozzi- for the code and AngusOfStockholm for the report
+
 * Sat Sep 12 2026 Caesar <caesar@munkstolen.se> - 0.3-1
 - Add MP3, CD, Hi-Res and Hi-Res Max quality options
 - Show the audio quality actually delivered by the stream

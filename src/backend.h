@@ -5,6 +5,7 @@
 #include <QThread>
 #include <QString>
 #include <QSettings>
+#include <QDir>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
 #include <QtNetwork/QHostAddress>
@@ -520,14 +521,18 @@ public:
         m_thread.wait();
     }
 
-Q_INVOKABLE QString streamQualityPreference() const {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
+    // Sailjail keeps only ~/.config/se.munkstolen/harbour-fiatpons/ between
+    // runs. QSettings' default file sits beside that folder and is lost.
+    static QString settingsFile() {
+        return QDir::homePath()
+            + QStringLiteral("/.config/se.munkstolen/harbour-fiatpons/settings.conf");
+    }
 
-        QString value = settings.value(
-            "playback/streamQuality",
+    Q_INVOKABLE QString streamQualityPreference() const {
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+
+        const QString value = settings.value(
+            "streamQuality",
             "lossless"
         ).toString();
 
@@ -543,11 +548,6 @@ Q_INVOKABLE QString streamQualityPreference() const {
     Q_INVOKABLE void setStreamQualityPreference(
         const QString &quality
     ) {
-        QSettings settings(
-            "se.munkstolen",
-            "harbour-fiatpons"
-        );
-
         QString value = quality;
 
         if (value != "mp3"
@@ -556,11 +556,8 @@ Q_INVOKABLE QString streamQualityPreference() const {
                 && value != "ultrahires")
             value = "lossless";
 
-        settings.setValue(
-            "playback/streamQuality",
-            value
-        );
-
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+        settings.setValue("streamQuality", value);
         settings.sync();
     }
 

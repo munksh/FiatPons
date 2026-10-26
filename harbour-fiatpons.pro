@@ -16,8 +16,9 @@ RUST_LIB = $$RUST_LIB_DIR/libfiatpons_ffi.so
 
 LIBS += -L$$RUST_LIB_DIR -lfiatpons_ffi
 
+# Harbour allows private libraries only here; the binary's rpath points here.
 rustlib.files = $$RUST_LIB
-rustlib.path = $$[QT_INSTALL_LIBS]
+rustlib.path = /usr/share/$${TARGET}/lib
 INSTALLS += rustlib
 # ---- end Rust FFI ----
 
@@ -42,9 +43,7 @@ OTHER_FILES += \
     qml/pages/AboutPage.qml \
     qml/pages/AlbumPage.qml \
     qml/pages/ArtistPage.qml \
-    qml/pages/FavouritesPage.qml \
     qml/pages/PlaylistPage.qml \
-    qml/pages/PlaylistsPage.qml \
     qml/pages/NewPlaylistDialog.qml \
     qml/pages/PlaylistPickerPage.qml \
     qml/pages/DiscoverListPage.qml \
@@ -85,9 +84,7 @@ DISTFILES += \
     qml/pages/AboutPage.qml \
     qml/pages/AlbumPage.qml \
     qml/pages/ArtistPage.qml \
-    qml/pages/FavouritesPage.qml \
     qml/pages/PlaylistPage.qml \
-    qml/pages/PlaylistsPage.qml \
     qml/pages/NewPlaylistDialog.qml \
     qml/pages/PlaylistPickerPage.qml \
     qml/components/PageHead.qml \

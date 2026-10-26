@@ -247,7 +247,7 @@ Item {
 
             onClicked: {
                 if (section.mode === "tracks") {
-                    app.queue.playNow(rowTrack())
+                    app.queue.playFrom(tracksModel, index, section.trackObj)
                 } else {
                     pageStack.push(Qt.resolvedUrl("../pages/AlbumPage.qml"), {
                         albumId: String(model.id)
