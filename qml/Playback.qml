@@ -37,6 +37,12 @@ Item {
     readonly property bool playing:
         player.playbackState === MediaPlayer.PlayingState
 
+    // True while a stream URL is being resolved but nothing is playing yet
+    // (the "Resolving…" window). Used by the album/playlist play buttons to
+    // show a loader instead of a dead play/pause icon.
+    readonly property bool loading:
+        pending > 0 && !playing
+
     readonly property int position: player.position
     readonly property int duration: player.duration
 
