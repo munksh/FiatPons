@@ -10,7 +10,7 @@
 
 Name:       harbour-fiatpons
 Summary:    Fiat Pons
-Version:    1.1
+Version:    1.2
 Release:    1
 License:    MIT
 URL:        https://github.com/munksh/FiatPons
@@ -88,6 +88,10 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/172x172/apps/%{name}.png
 
 %changelog
+* Sun Nov 01 2026 Caesar <caesar@munkstolen.se> - 1.2-1
+- fiat penus and fiat tessera added to the family list on the About page
+- Family links lead to munkstolen.se
+
 * Mon Oct 26 2026 Caesar <caesar@munkstolen.se> - 1.1-1
 - Tapping a track plays it and queues the rest of the list; the context
   menu's Play now still plays a single track
