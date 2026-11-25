@@ -561,6 +561,47 @@ public:
         settings.sync();
     }
 
+    // Seconds of audio that must be cached before playback starts, or
+    // resumes after the buffer ran dry. 0 = off.
+    Q_INVOKABLE int precacheSeconds() const {
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+        bool ok = false;
+        int value = settings.value("precacheSeconds", 30).toInt(&ok);
+        return ok ? qBound(0, value, 300) : 30;
+    }
+
+    Q_INVOKABLE void setPrecacheSeconds(int seconds) {
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+        settings.setValue("precacheSeconds", qBound(0, seconds, 300));
+        settings.sync();
+    }
+
+    // Seconds to download ahead of the player. 0 = whole track.
+    Q_INVOKABLE int readAheadSeconds() const {
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+        bool ok = false;
+        int value = settings.value("readAheadSeconds", 0).toInt(&ok);
+        return ok ? qBound(0, value, 3600) : 0;
+    }
+
+    Q_INVOKABLE void setReadAheadSeconds(int seconds) {
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+        settings.setValue("readAheadSeconds", qBound(0, seconds, 3600));
+        settings.sync();
+    }
+
+    // Show the precache status line on the Now Playing page.
+    Q_INVOKABLE bool showCacheStatus() const {
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+        return settings.value("showCacheStatus", true).toBool();
+    }
+
+    Q_INVOKABLE void setShowCacheStatus(bool show) {
+        QSettings settings(settingsFile(), QSettings::IniFormat);
+        settings.setValue("showCacheStatus", show);
+        settings.sync();
+    }
+
     Q_INVOKABLE void search(const QString &query)        { emit requestSearch(query); }
     Q_INVOKABLE void searchAlbums(const QString &query)  { emit requestSearchAlbums(query); }
     Q_INVOKABLE void searchArtists(const QString &query) { emit requestSearchArtists(query); }

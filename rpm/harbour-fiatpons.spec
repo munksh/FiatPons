@@ -10,7 +10,7 @@
 
 Name:       harbour-fiatpons
 Summary:    Fiat Pons
-Version:    1.2
+Version:    1.3
 Release:    1
 License:    MIT
 URL:        https://github.com/munksh/FiatPons
