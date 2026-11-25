@@ -33,6 +33,153 @@ Item {
     property bool trackStartIssued: false
     property int trackStartAttempts: 0
     property int trackStartConfirmations: 0
+    // Ticks spent waiting on the network during a verified start; these do
+    // not count as failed attempts.
+    property int trackStartWaitTicks: 0
+
+    // Automatic recovery after a network error: reload the same track and
+    // resume at the last position that actually played.
+    property int lastGoodPosition: -1
+    property int recoveryAttempts: 0
+    property bool recoveryLoad: false
+    readonly property int maxRecoveryAttempts: 8
+
+    readonly property string bufferingText: "Buffering\u2026"
+    readonly property string reconnectingText: "Weak connection, reconnecting\u2026"
+
+    // Precache status for the Now Playing page, e.g.
+    // "Precaching 42% \u00B7 1:23 ahead" or "Fully cached".
+    readonly property bool cacheAvailable:
+        typeof streamCache !== "undefined" && streamCache !== null
+    // Seconds of audio to cache before playing (setting, 0 = off).
+    property int precacheSeconds: 30
+    // True while playback is held back until enough is cached.
+    property bool precaching: false
+    property int precacheWaitTicks: 0
+
+    // Show cacheText on the Now Playing page (setting).
+    property bool showCacheStatus: true
+
+    function setShowCacheStatus(value) {
+        showCacheStatus = value
+        backend.setShowCacheStatus(value)
+    }
+
+    // Seconds to download ahead of the player (setting, 0 = whole track).
+    property int readAheadSeconds: 0
+
+    // The limit in bytes for the current track, from its average bitrate.
+    // Never below the precache amount plus a margin, or precaching could
+    // wait for data the limit forbids.
+    readonly property real readAheadBytes: {
+        if (!cacheAvailable || readAheadSeconds <= 0)
+            return 0
+
+        var total = streamCache.totalBytes
+        if (total <= 0 || knownDuration <= 0)
+            return 0
+
+        var seconds = Math.max(readAheadSeconds, precacheSeconds + 30)
+        return Math.round(total * seconds * 1000 / knownDuration)
+    }
+
+    onReadAheadBytesChanged: {
+        if (cacheAvailable)
+            streamCache.setReadAheadBytes(readAheadBytes)
+    }
+
+    function setReadAheadSeconds(value) {
+        readAheadSeconds = Math.max(0, Math.min(3600, Math.round(value)))
+        backend.setReadAheadSeconds(readAheadSeconds)
+    }
+
+    // Track length: from the player once known, else from the catalogue.
+    readonly property int knownDuration:
+        duration > 0 ? duration
+        : (nowTrack && nowTrack.duration_secs
+           ? nowTrack.duration_secs * 1000 : 0)
+
+    readonly property string cacheText: {
+        if (!cacheAvailable || !nowTrack || streamCache.totalBytes <= 0)
+            return ""
+
+        var total = streamCache.totalBytes
+        var start = streamCache.cachedStart
+        var end = streamCache.cachedEnd
+        var ahead = cacheAheadMs()
+
+        if (precaching) {
+            return "Precaching " + fmtTime(Math.max(0, ahead))
+                    + " / " + fmtTime(precacheTargetMs())
+                    + " before playing"
+        }
+
+        if (streamCache.cacheComplete && start <= 0)
+            return "Fully cached"
+
+        var text = "Precaching " + Math.floor(100 * (end - start) / total) + "%"
+
+        if (ahead >= 0)
+            text += " \u00B7 " + fmtTime(ahead) + " ahead"
+
+        return text
+    }
+
+    function fmtTime(ms) {
+        var s = Math.floor(Math.max(0, ms) / 1000)
+        var sec = s % 60
+        return Math.floor(s / 60) + ":" + (sec < 10 ? "0" : "") + sec
+    }
+
+    // Milliseconds of audio cached past the playhead, -1 if unknown.
+    // FLAC is variable bitrate, so bytes to time is an estimate.
+    function cacheAheadMs() {
+        if (!cacheAvailable || streamCache.totalBytes <= 0 || knownDuration <= 0)
+            return -1
+
+        if (streamCache.cacheComplete && streamCache.cachedStart <= 0)
+            return Math.max(0, knownDuration - position)
+
+        return Math.max(
+            0,
+            streamCache.cachedEnd / streamCache.totalBytes * knownDuration
+            - position
+        )
+    }
+
+    // Never ask for more than what is left of the track.
+    function precacheTargetMs() {
+        return Math.min(
+            precacheSeconds * 1000,
+            Math.max(0, knownDuration - position - 1000)
+        )
+    }
+
+    function enoughCached() {
+        if (precacheSeconds <= 0 || !cacheAvailable)
+            return true
+
+        // Playing straight from Qobuz (proxy unavailable): nothing to wait on.
+        if (String(player.source).indexOf("http://127.0.0.1:") !== 0)
+            return true
+
+        if (streamCache.cacheComplete)
+            return true
+
+        var ahead = cacheAheadMs()
+        return ahead >= 0 && ahead >= precacheTargetMs()
+    }
+
+    function setPrecacheSeconds(value) {
+        precacheSeconds = Math.max(0, Math.min(300, Math.round(value)))
+        backend.setPrecacheSeconds(precacheSeconds)
+    }
+
+    function stopPrecaching() {
+        precaching = false
+        precacheWaitTicks = 0
+        rebufferTimer.stop()
+    }
 
     readonly property bool playing:
         player.playbackState === MediaPlayer.PlayingState
@@ -91,12 +238,21 @@ Item {
         onCurrentChanged: playback.load(true)
     }
 
-    function load(playAfterResolve, positionAfterResolve) {
+    function load(playAfterResolve, positionAfterResolve, isRecovery) {
         if (playAfterResolve === undefined)
             playAfterResolve = true
 
         if (positionAfterResolve === undefined)
             positionAfterResolve = -1
+
+        recoveryLoad = isRecovery === true
+        recoveryTimer.stop()
+
+        if (!recoveryLoad) {
+            recoveryAttempts = 0
+            lastGoodPosition =
+                positionAfterResolve > 0 ? Math.round(positionAfterResolve) : -1
+        }
 
         var t = queue ? queue.currentTrack() : null
 
@@ -107,6 +263,8 @@ Item {
         trackStartIssued = false
         trackStartAttempts = 0
         trackStartConfirmations = 0
+        trackStartWaitTicks = 0
+        stopPrecaching()
         resumeAttempts = 0
         resumeConfirmations = 0
         resumePosition =
@@ -123,7 +281,8 @@ Item {
         )
 
         if (t) {
-            statusLine = "Resolving\u2026"
+            if (!recoveryLoad)
+                statusLine = "Resolving\u2026"
 
             log(
                 "request quality="
@@ -159,13 +318,51 @@ Item {
 
         explicitlyStopped = false
         playWhenResolved = true
+
+        // Pressing play after recovery gave up: start over from where it was.
+        if (player.status === MediaPlayer.InvalidMedia
+                || player.status === MediaPlayer.NoMedia) {
+            load(true, lastGoodPosition)
+            return
+        }
+
         player.play()
+    }
+
+    // Called on a player error or a premature end of stream.
+    function recover(reason) {
+        if (!nowTrack || explicitlyStopped)
+            return
+
+        if (recoveryAttempts >= maxRecoveryAttempts) {
+            log("recovery gave up: " + reason)
+            statusLine = "Playback error: " + reason
+            shouldPlay = false
+            return
+        }
+
+        recoveryAttempts += 1
+
+        // 2 s, 4 s, 6 s ... capped at 10 s.
+        recoveryTimer.interval =
+            Math.min(2000 * recoveryAttempts, 10000)
+
+        log(
+            "recover attempt " + recoveryAttempts
+            + " in " + recoveryTimer.interval + " ms"
+            + " at " + lastGoodPosition + " ms: " + reason
+        )
+
+        statusLine = reconnectingText
+        recoveryTimer.restart()
     }
 
     function pause() {
         playWhenResolved = false
         shouldPlay = false
         trackStartTimer.stop()
+        recoveryTimer.stop()
+        stopPrecaching()
 
         if (player.playbackState === MediaPlayer.PlayingState)
             player.pause()
@@ -175,6 +372,8 @@ Item {
         playWhenResolved = false
         shouldPlay = false
         trackStartTimer.stop()
+        recoveryTimer.stop()
+        stopPrecaching()
         explicitlyStopped = true
         player.stop()
     }
@@ -302,6 +501,9 @@ Item {
         preferredQuality = normalizeQuality(
             backend.streamQualityPreference()
         )
+        precacheSeconds = backend.precacheSeconds()
+        readAheadSeconds = backend.readAheadSeconds()
+        showCacheStatus = backend.showCacheStatus()
     }
 
     Backend {
@@ -331,6 +533,13 @@ Item {
 
         if (data.error) {
             log("onStream error: " + data.error)
+
+            // Resolving the URL needs the network too.
+            if (recoveryLoad) {
+                recover(data.error)
+                return
+            }
+
             statusLine = "Error: " + data.error
             return
         }
@@ -372,7 +581,52 @@ Item {
             + (nowTrack ? nowTrack.id : 0)
         )
 
-        player.source = data.url
+        // Play through the local caching proxy (see src/streamcache.h). The
+        // key ties the cache to track and quality, so a reload after an error
+        // keeps what was already downloaded.
+        var source = data.url
+
+        if (typeof streamCache !== "undefined" && streamCache) {
+            source = streamCache.proxy(
+                String(nowTrack ? nowTrack.id : 0) + ":" + preferredQuality,
+                data.url
+            )
+        }
+
+        player.source = source
+    }
+
+    Connections {
+        target: typeof streamCache !== "undefined" ? streamCache : null
+
+        onReconnectingChanged: {
+            if (streamCache.reconnecting) {
+                if (playback.statusLine === ""
+                        || playback.statusLine === playback.bufferingText)
+                    playback.statusLine = playback.reconnectingText
+            } else if (playback.statusLine === playback.reconnectingText
+                       && !recoveryTimer.running) {
+                playback.statusLine = ""
+            }
+        }
+    }
+
+    Timer {
+        id: recoveryTimer
+
+        repeat: false
+        running: false
+
+        onTriggered: {
+            if (!playback.nowTrack || playback.explicitlyStopped)
+                return
+
+            playback.load(
+                playback.playWhenResolved,
+                playback.lastGoodPosition,
+                true
+            )
+        }
     }
 
     MprisPlayer {
@@ -533,6 +787,18 @@ Item {
                 return
             }
 
+            // Hold the first play until enough is cached; give up holding
+            // after about two minutes and play anyway.
+            if (!playback.trackStartIssued
+                    && !playback.enoughCached()
+                    && playback.precacheWaitTicks < 185) {
+                playback.precacheWaitTicks += 1
+                playback.precaching = true
+                return
+            }
+
+            playback.precaching = false
+
             if (!playback.trackStartIssued) {
                 playback.trackStartIssued = true
                 playback.trackStartAttempts = 1
@@ -561,6 +827,8 @@ Item {
                     playback.trackStartIssued = false
                     playback.trackStartAttempts = 0
                     playback.trackStartConfirmations = 0
+                    playback.recoveryAttempts = 0
+                    playback.clearTransientStatus()
                     stop()
                 }
 
@@ -568,6 +836,16 @@ Item {
             }
 
             playback.trackStartConfirmations = 0
+
+            // Still waiting for data is not a failed start. Allow about 45 s
+            // of that before giving up.
+            if (playback.waitingForData()
+                    && playback.trackStartWaitTicks < 70) {
+                playback.trackStartWaitTicks += 1
+                player.play()
+                return
+            }
+
             playback.trackStartAttempts += 1
 
             if (playback.trackStartAttempts > 10) {
@@ -623,7 +901,8 @@ Item {
             if (player.duration <= 0) {
                 playback.resumeAttempts += 1
 
-                if (playback.resumeAttempts >= 12) {
+                // ~20 s: on a weak link the header can take a while.
+                if (playback.resumeAttempts >= 30) {
                     playback.log(
                         "resume failed: duration never became available"
                     )
@@ -666,6 +945,8 @@ Item {
                     playback.resumePosition = -1
                     playback.resumeAttempts = 0
                     playback.resumeConfirmations = 0
+                    playback.recoveryAttempts = 0
+                    playback.clearTransientStatus()
 
                     mpris.seeked(player.position)
 
@@ -686,9 +967,18 @@ Item {
             }
 
             playback.resumeConfirmations = 0
+
+            // A seek into a part not downloaded yet waits for the download.
+            // Do not seek again while it does.
+            if (playback.waitingForData()
+                    && playback.resumeAttempts < 30) {
+                playback.resumeAttempts += 1
+                return
+            }
+
             playback.resumeAttempts += 1
 
-            if (playback.resumeAttempts > 12) {
+            if (playback.resumeAttempts > 30) {
                 playback.log(
                     "resume failed after retries; target="
                     + target
@@ -717,19 +1007,95 @@ Item {
         }
     }
 
+    // The playhead caught up with the download: pause, refill the
+    // precache amount, then continue. One longer pause instead of many
+    // short stutters.
+    Timer {
+        id: rebufferTimer
+
+        interval: 500
+        repeat: true
+        running: false
+
+        onTriggered: {
+            if (!playback.playWhenResolved || !playback.nowTrack) {
+                playback.stopPrecaching()
+                return
+            }
+
+            playback.precacheWaitTicks += 1
+
+            if (playback.enoughCached()
+                    || playback.precacheWaitTicks > 240) {
+                playback.log(
+                    "rebuffer done after "
+                    + playback.precacheWaitTicks * 500 + " ms"
+                )
+                playback.stopPrecaching()
+                player.play()
+            }
+        }
+    }
+
+    function waitingForData() {
+        return player.status === MediaPlayer.Loading
+            || player.status === MediaPlayer.Stalled
+            || player.status === MediaPlayer.Buffering
+    }
+
+    function clearTransientStatus() {
+        if (statusLine === bufferingText
+                || statusLine === reconnectingText)
+            statusLine = ""
+    }
+
     MediaPlayer {
         id: player
         autoPlay: false
 
         onError: {
             log("ERR " + errorString)
-            playback.statusLine =
-                "Playback error: " + errorString
             playback.shouldPlay = false
+            trackStartTimer.stop()
+            playback.recover(errorString)
         }
 
-        onStatusChanged:
+        onPositionChanged: {
+            // Not while a new track is being resolved: the old one is
+            // still playing then.
+            if (position > 0
+                    && playback.nowTrack
+                    && playback.pending === 0
+                    && !playback.resumePending)
+                playback.lastGoodPosition = position
+        }
+
+        onStatusChanged: {
+            if (status === MediaPlayer.Stalled
+                    && playback.playWhenResolved
+                    && playback.precacheSeconds > 0
+                    && playbackState === MediaPlayer.PlayingState
+                    && !playback.resumePending
+                    && !trackStartTimer.running
+                    && !rebufferTimer.running
+                    && !playback.enoughCached()) {
+                playback.log("buffer ran dry, rebuffering")
+                player.pause()
+                playback.precaching = true
+                playback.precacheWaitTicks = 0
+                rebufferTimer.start()
+            } else if (status === MediaPlayer.Stalled
+                    && playback.playWhenResolved
+                    && !playback.precaching) {
+                if (playback.statusLine === "")
+                    playback.statusLine = playback.bufferingText
+            } else if (status === MediaPlayer.Buffered
+                       && playback.statusLine === playback.bufferingText) {
+                playback.statusLine = ""
+            }
+
             playback.finishPendingLoad()
+        }
 
         onSeekableChanged:
             playback.finishPendingLoad()
@@ -739,6 +1105,20 @@ Item {
 
         onStopped: {
             if (status === MediaPlayer.EndOfMedia) {
+                // A broken connection can look like the end of the track.
+                // Do not skip ahead when we were nowhere near the end.
+                if (playback.duration > 0
+                        && playback.lastGoodPosition >= 0
+                        && playback.lastGoodPosition
+                           < playback.duration - 5000) {
+                    playback.log(
+                        "EndOfMedia at " + playback.lastGoodPosition
+                        + " of " + playback.duration + " -> recover"
+                    )
+                    playback.recover("stream ended early")
+                    return
+                }
+
                 playback.log(
                     "EndOfMedia -> advance"
                 )

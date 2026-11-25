@@ -255,6 +255,16 @@ Item {
                 }
             }
 
+            // ---- Precache status (see src/streamcache.h) ----
+            Label {
+                width: parent.width
+                text: app.playback.cacheText
+                color: FiatPonsTheme.secondaryText
+                font.pixelSize: Theme.fontSizeExtraSmall
+                horizontalAlignment: Text.AlignHCenter
+                visible: app.playback.showCacheStatus && text.length > 0
+            }
+
             // ---- Primary transport ----
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter

@@ -163,6 +163,95 @@ Page {
                 }
             }
 
+            ComboBox {
+                id: precacheBox
+
+                // Seconds; index matches the menu below.
+                property var values: [0, 10, 30, 60, 120]
+
+                width: parent.width
+                label: "Precache before playing"
+                description:
+                    "Audio to download before a track starts, and before "
+                    + "it continues if the connection falls behind. More "
+                    + "means fewer interruptions but a slower start."
+
+                currentIndex: {
+                    var i = values.indexOf(app.playback.precacheSeconds)
+                    return i >= 0 ? i : 2
+                }
+
+                menu: ContextMenu {
+                    MenuItem {
+                        text: "Off"
+                        onClicked: app.playback.setPrecacheSeconds(0)
+                    }
+                    MenuItem {
+                        text: "10 seconds"
+                        onClicked: app.playback.setPrecacheSeconds(10)
+                    }
+                    MenuItem {
+                        text: "30 seconds"
+                        onClicked: app.playback.setPrecacheSeconds(30)
+                    }
+                    MenuItem {
+                        text: "1 minute"
+                        onClicked: app.playback.setPrecacheSeconds(60)
+                    }
+                    MenuItem {
+                        text: "2 minutes"
+                        onClicked: app.playback.setPrecacheSeconds(120)
+                    }
+                }
+            }
+
+            TextSwitch {
+                text: "Show cache status"
+                description: "Show precaching progress on the Now Playing page"
+                automaticCheck: false
+                checked: app.playback.showCacheStatus
+                onClicked: app.playback.setShowCacheStatus(!app.playback.showCacheStatus)
+            }
+
+            ComboBox {
+                id: readAheadBox
+
+                // Seconds; index matches the menu below. 0 = whole track.
+                property var values: [60, 180, 300, 0]
+
+                width: parent.width
+                label: "Download ahead"
+                description:
+                    "How far ahead of what is playing to download. The "
+                    + "whole track rides out the longest outages; a limit "
+                    + "saves data when skipping songs. Always at least "
+                    + "30 s more than the precache."
+
+                currentIndex: {
+                    var i = values.indexOf(app.playback.readAheadSeconds)
+                    return i >= 0 ? i : 3
+                }
+
+                menu: ContextMenu {
+                    MenuItem {
+                        text: "1 minute"
+                        onClicked: app.playback.setReadAheadSeconds(60)
+                    }
+                    MenuItem {
+                        text: "3 minutes"
+                        onClicked: app.playback.setReadAheadSeconds(180)
+                    }
+                    MenuItem {
+                        text: "5 minutes"
+                        onClicked: app.playback.setReadAheadSeconds(300)
+                    }
+                    MenuItem {
+                        text: "Whole track"
+                        onClicked: app.playback.setReadAheadSeconds(0)
+                    }
+                }
+            }
+
             SectionHeader { text: "" }
             BackgroundItem {
                 width: parent.width

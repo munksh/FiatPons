@@ -3,7 +3,8 @@ CONFIG += sailfishapp
 QT += network
 
 SOURCES += src/harbour-fiatpons.cpp
-HEADERS += src/backend.h
+HEADERS += src/backend.h \
+    src/streamcache.h
 INCLUDEPATH += $$PWD/src
 
 # ---- Rust FFI library (built on the host via build-rust.sh) ----
